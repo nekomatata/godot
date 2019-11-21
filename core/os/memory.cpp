@@ -71,7 +71,25 @@ uint64_t Memory::max_usage = 0;
 
 uint64_t Memory::alloc_count = 0;
 
+#define APP_VERIFIER_ENABLED 0
+
+#if APP_VERIFIER_ENABLED
+bool g_appverif = true;
+
+#include <windows.h>
+#endif
+
 void *Memory::alloc_static(size_t p_bytes, bool p_pad_align) {
+
+#if APP_VERIFIER_ENABLED
+	if (g_appverif) {
+		size_t pad_align = p_pad_align ? PAD_ALIGN : 0;
+		uint8_t *mem = (uint8_t *)GlobalAlloc(GMEM_FIXED, p_bytes + pad_align);
+		DWORD err = GetLastError();
+		mem += pad_align;
+		return mem;
+	}
+#endif
 
 #ifdef DEBUG_ENABLED
 	bool prepad = true;
@@ -106,6 +124,24 @@ void *Memory::realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align) {
 	if (p_memory == NULL) {
 		return alloc_static(p_bytes, p_pad_align);
 	}
+
+#if APP_VERIFIER_ENABLED
+	if (g_appverif) {
+		size_t pad_align = p_pad_align ? PAD_ALIGN : 0;
+		uint8_t *mem = (uint8_t *)p_memory;
+		mem -= pad_align;
+		size_t prev_size = GlobalSize(mem);
+		DWORD err = GetLastError();
+		size_t new_size = p_bytes + pad_align;
+		uint8_t *new_mem = (uint8_t *)GlobalAlloc(GMEM_FIXED, new_size);
+		err = GetLastError();
+		memcpy(new_mem, mem, new_size > prev_size ? prev_size : new_size);
+		GlobalFree(mem);
+		err = GetLastError();
+		new_mem += pad_align;
+		return new_mem;
+	}
+#endif
 
 	uint8_t *mem = (uint8_t *)p_memory;
 
@@ -156,6 +192,17 @@ void *Memory::realloc_static(void *p_memory, size_t p_bytes, bool p_pad_align) {
 void Memory::free_static(void *p_ptr, bool p_pad_align) {
 
 	ERR_FAIL_COND(p_ptr == NULL);
+
+#if APP_VERIFIER_ENABLED
+	if (g_appverif) {
+		size_t pad_align = p_pad_align ? PAD_ALIGN : 0;
+		uint8_t *mem = (uint8_t *)p_ptr;
+		mem -= pad_align;
+		GlobalFree(mem);
+		DWORD err = GetLastError();
+		return;
+	}
+#endif
 
 	uint8_t *mem = (uint8_t *)p_ptr;
 
