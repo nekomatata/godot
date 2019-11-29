@@ -771,16 +771,43 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					continue;
 				}
 
-				Size2 texpixel_size(1.0 / tex->width, 1.0 / tex->height);
-
-				// state.canvas_shader.set_uniform(CanvasShaderGLES2::MODELVIEW_MATRIX, state.uniforms.modelview_matrix);
-				state.canvas_shader.set_uniform(CanvasShaderGLES2::COLOR_TEXPIXEL_SIZE, texpixel_size);
-
 				Rect2 source = np->source;
 				if (source.size.x == 0 && source.size.y == 0) {
 					source.size.x = tex->width;
 					source.size.y = tex->height;
 				}
+
+				Size2 texpixel_size(1.0 / tex->width, 1.0 / tex->height);
+
+				bool force_repeat_x = false;
+				bool force_repeat_y = false;
+
+				if (VisualServer::NINE_PATCH_TILE == np->axis_x) {
+					texpixel_size.x *= np->rect.size.x / tex->width;
+					force_repeat_x = !(tex->flags & VS::TEXTURE_FLAG_REPEAT);
+				} else if (VisualServer::NINE_PATCH_TILE_FIT == np->axis_x) {
+					texpixel_size.x *= MAX(1.0, floor(np->rect.size.x / tex->width + 0.5));
+					force_repeat_x = !(tex->flags & VS::TEXTURE_FLAG_REPEAT);
+				}
+
+				if (VisualServer::NINE_PATCH_TILE == np->axis_y) {
+					texpixel_size.y *= np->rect.size.y / tex->height;
+					force_repeat_y = !(tex->flags & VS::TEXTURE_FLAG_REPEAT);
+				} else if (VisualServer::NINE_PATCH_TILE_FIT == np->axis_x) {
+					texpixel_size.y *= MAX(1.0, floor(np->rect.size.y / tex->height + 0.5));
+					force_repeat_y = !(tex->flags & VS::TEXTURE_FLAG_REPEAT);
+				}
+
+				if (force_repeat_x) {
+					glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+				}
+
+				if (force_repeat_y) {
+					glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+				}
+
+				// state.canvas_shader.set_uniform(CanvasShaderGLES2::MODELVIEW_MATRIX, state.uniforms.modelview_matrix);
+				state.canvas_shader.set_uniform(CanvasShaderGLES2::COLOR_TEXPIXEL_SIZE, texpixel_size);
 
 				float screen_scale = 1.0;
 
@@ -918,6 +945,14 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 
 				glBindBuffer(GL_ARRAY_BUFFER, 0);
 				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+				if (force_repeat_x) {
+					glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				}
+
+				if (force_repeat_y) {
+					glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				}
 
 			} break;
 
