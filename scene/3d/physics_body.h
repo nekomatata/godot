@@ -584,6 +584,7 @@ protected:
 private:
 	static Skeleton *find_skeleton_parent(Node *p_parent);
 
+	void _update_joint_offset();
 	void _fix_joint_offset();
 	void _reload_joint();
 
@@ -607,6 +608,12 @@ public:
 
 	void set_joint_offset(const Transform &p_offset);
 	const Transform &get_joint_offset() const;
+
+	void set_joint_rotation(const Vector3 &p_euler_rad);
+	Vector3 get_joint_rotation() const;
+
+	void set_joint_rotation_degrees(const Vector3 &p_euler_deg);
+	Vector3 get_joint_rotation_degrees() const;
 
 	void set_body_offset(const Transform &p_offset);
 	const Transform &get_body_offset() const;

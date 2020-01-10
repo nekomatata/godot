@@ -2225,6 +2225,10 @@ void PhysicalBone::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_joint_offset", "offset"), &PhysicalBone::set_joint_offset);
 	ClassDB::bind_method(D_METHOD("get_joint_offset"), &PhysicalBone::get_joint_offset);
+	ClassDB::bind_method(D_METHOD("set_joint_rotation", "euler"), &PhysicalBone::set_joint_rotation);
+	ClassDB::bind_method(D_METHOD("get_joint_rotation"), &PhysicalBone::get_joint_rotation);
+	ClassDB::bind_method(D_METHOD("set_joint_rotation_degrees", "euler_degrees"), &PhysicalBone::set_joint_rotation_degrees);
+	ClassDB::bind_method(D_METHOD("get_joint_rotation_degrees"), &PhysicalBone::get_joint_rotation_degrees);
 
 	ClassDB::bind_method(D_METHOD("set_body_offset", "offset"), &PhysicalBone::set_body_offset);
 	ClassDB::bind_method(D_METHOD("get_body_offset"), &PhysicalBone::get_body_offset);
@@ -2254,6 +2258,8 @@ void PhysicalBone::_bind_methods() {
 
 	ADD_GROUP("Joint", "joint_");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "joint_type", PROPERTY_HINT_ENUM, "None,PinJoint,ConeJoint,HingeJoint,SliderJoint,6DOFJoint"), "set_joint_type", "get_joint_type");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "joint_rotation_degrees", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_EDITOR), "set_joint_rotation_degrees", "get_joint_rotation_degrees");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "joint_rotation", PROPERTY_HINT_NONE, "", 0), "set_joint_rotation", "get_joint_rotation");
 	ADD_PROPERTY(PropertyInfo(Variant::TRANSFORM, "joint_offset"), "set_joint_offset", "get_joint_offset");
 
 	ADD_PROPERTY(PropertyInfo(Variant::TRANSFORM, "body_offset"), "set_body_offset", "get_body_offset");
@@ -2278,6 +2284,19 @@ Skeleton *PhysicalBone::find_skeleton_parent(Node *p_parent) {
 	}
 	Skeleton *s = Object::cast_to<Skeleton>(p_parent);
 	return s ? s : find_skeleton_parent(p_parent->get_parent());
+}
+
+void PhysicalBone::_update_joint_offset() {
+	_fix_joint_offset();
+
+	set_ignore_transform_notification(true);
+	reset_to_rest_position();
+	set_ignore_transform_notification(false);
+
+#ifdef TOOLS_ENABLED
+	if (get_gizmo().is_valid())
+		get_gizmo()->redraw();
+#endif
 }
 
 void PhysicalBone::_fix_joint_offset() {
@@ -2462,21 +2481,31 @@ PhysicalBone::JointType PhysicalBone::get_joint_type() const {
 
 void PhysicalBone::set_joint_offset(const Transform &p_offset) {
 	joint_offset = p_offset;
-
-	_fix_joint_offset();
-
-	set_ignore_transform_notification(true);
-	reset_to_rest_position();
-	set_ignore_transform_notification(false);
-
-#ifdef TOOLS_ENABLED
-	if (get_gizmo().is_valid())
-		get_gizmo()->redraw();
-#endif
+	_update_joint_offset();
+	_change_notify("joint_rotation");
+	_change_notify("joint_rotation_degrees");
 }
 
 const Transform &PhysicalBone::get_body_offset() const {
 	return body_offset;
+}
+
+void PhysicalBone::set_joint_rotation(const Vector3 &p_euler_rad) {
+	joint_offset.basis.set_euler_scale(p_euler_rad, joint_offset.basis.get_scale());
+	_update_joint_offset();
+	_change_notify("joint_offset");
+}
+
+Vector3 PhysicalBone::get_joint_rotation() const {
+	return joint_offset.basis.get_rotation();
+}
+
+void PhysicalBone::set_joint_rotation_degrees(const Vector3 &p_euler_deg) {
+	set_joint_rotation(p_euler_deg * Math_PI / 180.0);
+}
+
+Vector3 PhysicalBone::get_joint_rotation_degrees() const {
+	return get_joint_rotation() * 180.0 / Math_PI;
 }
 
 void PhysicalBone::set_body_offset(const Transform &p_offset) {

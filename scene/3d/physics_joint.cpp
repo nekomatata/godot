@@ -30,70 +30,148 @@
 
 #include "physics_joint.h"
 
+#include "scene/scene_string_names.h"
+
 void Joint::_update_joint(bool p_only_free) {
+	_disable_joint();
 
-	if (joint.is_valid()) {
-		if (ba.is_valid() && bb.is_valid())
-			PhysicsServer::get_singleton()->body_remove_collision_exception(ba, bb);
-
-		PhysicsServer::get_singleton()->free(joint);
-		joint = RID();
-		ba = RID();
-		bb = RID();
+	if (node_a) {
+		node_a->disconnect(SceneStringNames::get_singleton()->tree_entered, this, "_tree_entered_node_a");
+		node_a->disconnect(SceneStringNames::get_singleton()->tree_exiting, this, "_tree_exited_node_a");
+		node_a->disconnect(SceneStringNames::get_singleton()->predelete, this, "set_node_a");
+		node_a->remove_change_receptor(this);
+		node_a = NULL;
 	}
 
-	if (p_only_free || !is_inside_tree())
-		return;
+	if (node_b) {
+		node_b->disconnect(SceneStringNames::get_singleton()->tree_entered, this, "_tree_entered_node_b");
+		node_b->disconnect(SceneStringNames::get_singleton()->tree_exiting, this, "_tree_exited_node_b");
+		node_b->disconnect(SceneStringNames::get_singleton()->predelete, this, "set_node_b");
+		node_b->remove_change_receptor(this);
+		node_b = NULL;
+	}
 
-	Node *node_a = has_node(get_node_a()) ? get_node(get_node_a()) : (Node *)NULL;
-	Node *node_b = has_node(get_node_b()) ? get_node(get_node_b()) : (Node *)NULL;
+	if (p_only_free || !is_inside_tree()) {
+		return;
+	}
+
+	node_a = has_node(a) ? get_node(a) : NULL;
+	if (node_a) {
+		node_a->connect(SceneStringNames::get_singleton()->tree_entered, this, "_tree_entered_node_a");
+		node_a->connect(SceneStringNames::get_singleton()->tree_exiting, this, "_tree_exited_node_a");
+		node_a->connect(SceneStringNames::get_singleton()->predelete, this, "set_node_a", varray(NodePath()));
+		node_a->add_change_receptor(this);
+	}
+
+	node_b = has_node(b) ? get_node(b) : NULL;
+	if (node_b) {
+		node_b->connect(SceneStringNames::get_singleton()->tree_entered, this, "_tree_entered_node_b");
+		node_b->connect(SceneStringNames::get_singleton()->tree_exiting, this, "_tree_exited_node_b");
+		node_b->connect(SceneStringNames::get_singleton()->predelete, this, "set_node_b", varray(NodePath()));
+		node_b->add_change_receptor(this);
+	}
+
+	_enable_joint();
+}
+
+void Joint::_disable_joint() {
+	if (!joint.is_valid()) {
+		return;
+	}
+
+	if (ba.is_valid() && bb.is_valid()) {
+		PhysicsServer::get_singleton()->body_remove_collision_exception(ba, bb);
+	}
+
+	PhysicsServer::get_singleton()->free(joint);
+	joint = RID();
+	ba = RID();
+	bb = RID();
+}
+
+void Joint::_enable_joint() {
+	if (joint.is_valid()) {
+		return;
+	}
 
 	PhysicsBody *body_a = Object::cast_to<PhysicsBody>(node_a);
 	PhysicsBody *body_b = Object::cast_to<PhysicsBody>(node_b);
 
-	if (!body_a && body_b)
+	if (!body_a && body_b) {
 		SWAP(body_a, body_b);
+	}
 
-	if (!body_a)
+	if (!body_a || !body_a->is_inside_tree()) {
 		return;
+	}
+
+	if (body_b && !body_b->is_inside_tree()) {
+		return;
+	}
 
 	joint = _configure_joint(body_a, body_b);
 
-	if (!joint.is_valid())
+	if (!joint.is_valid()) {
 		return;
+	}
 
 	PhysicsServer::get_singleton()->joint_set_solver_priority(joint, solver_priority);
 
 	ba = body_a->get_rid();
-	if (body_b)
+	if (body_b) {
 		bb = body_b->get_rid();
+	}
 
 	PhysicsServer::get_singleton()->joint_disable_collisions_between_bodies(joint, exclude_from_collision);
 }
 
-void Joint::set_node_a(const NodePath &p_node_a) {
-
-	if (a == p_node_a)
-		return;
-
-	a = p_node_a;
+void Joint::_tree_entered_node_a() {
 	_update_joint();
 }
 
-NodePath Joint::get_node_a() const {
+void Joint::_tree_entered_node_b() {
+	_update_joint();
+}
 
+void Joint::_tree_exited_node_a() {
+	_disable_joint();
+}
+
+void Joint::_tree_exited_node_b() {
+	_disable_joint();
+}
+
+void Joint::_changed_callback(Object *p_changed, const char *p_prop) {
+	update_gizmo();
+}
+
+void Joint::set_node_a(const NodePath &p_node_a) {
+	if (a == p_node_a) {
+		return;
+	}
+
+	a = p_node_a;
+
+	_update_joint();
+	update_gizmo();
+}
+
+NodePath Joint::get_node_a() const {
 	return a;
 }
 
 void Joint::set_node_b(const NodePath &p_node_b) {
-
-	if (b == p_node_b)
+	if (b == p_node_b) {
 		return;
-	b = p_node_b;
-	_update_joint();
-}
-NodePath Joint::get_node_b() const {
+	}
 
+	b = p_node_b;
+
+	_update_joint();
+	update_gizmo();
+}
+
+NodePath Joint::get_node_b() const {
 	return b;
 }
 
@@ -151,6 +229,11 @@ void Joint::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_exclude_nodes_from_collision", "enable"), &Joint::set_exclude_nodes_from_collision);
 	ClassDB::bind_method(D_METHOD("get_exclude_nodes_from_collision"), &Joint::get_exclude_nodes_from_collision);
 
+	ClassDB::bind_method(D_METHOD("_tree_entered_node_a"), &Joint::_tree_entered_node_a);
+	ClassDB::bind_method(D_METHOD("_tree_entered_node_b"), &Joint::_tree_entered_node_b);
+	ClassDB::bind_method(D_METHOD("_tree_exited_node_a"), &Joint::_tree_exited_node_a);
+	ClassDB::bind_method(D_METHOD("_tree_exited_node_b"), &Joint::_tree_exited_node_b);
+
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "nodes/node_a", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "CollisionObject"), "set_node_a", "get_node_a");
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "nodes/node_b", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "CollisionObject"), "set_node_b", "get_node_b");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "solver/priority", PROPERTY_HINT_RANGE, "1,8,1"), "set_solver_priority", "get_solver_priority");
@@ -163,6 +246,9 @@ Joint::Joint() {
 	exclude_from_collision = true;
 	solver_priority = 1;
 	set_notify_transform(true);
+
+	node_a = NULL;
+	node_b = NULL;
 }
 
 ///////////////////////////////////

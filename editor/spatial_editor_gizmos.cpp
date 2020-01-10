@@ -1847,13 +1847,13 @@ void PhysicalBoneSpatialGizmoPlugin::redraw(EditorSpatialGizmo *p_gizmo) {
 	if (!sk)
 		return;
 
-	PhysicalBone *pb(sk->get_physical_bone(physical_bone->get_bone_id()));
-	if (!pb)
+	PhysicalBone *parent_bone(sk->get_physical_bone_parent(physical_bone->get_bone_id()));
+	if (!parent_bone)
 		return;
 
-	PhysicalBone *pbp(sk->get_physical_bone_parent(physical_bone->get_bone_id()));
-	if (!pbp)
-		return;
+	Transform transform_joint = physical_bone->get_global_transform() * physical_bone->get_joint_offset();
+	Transform transform_body_a = parent_bone->get_global_transform();
+	Transform transform_body_b = physical_bone->get_global_transform();
 
 	Vector<Vector3> points;
 
@@ -1867,9 +1867,9 @@ void PhysicalBoneSpatialGizmoPlugin::redraw(EditorSpatialGizmo *p_gizmo) {
 			const PhysicalBone::ConeJointData *cjd(static_cast<const PhysicalBone::ConeJointData *>(physical_bone->get_joint_data()));
 			JointSpatialGizmoPlugin::CreateConeTwistJointGizmo(
 					physical_bone->get_joint_offset(),
-					physical_bone->get_global_transform() * physical_bone->get_joint_offset(),
-					pb->get_global_transform(),
-					pbp->get_global_transform(),
+					transform_joint,
+					transform_body_a,
+					transform_body_b,
 					cjd->swing_span,
 					cjd->twist_span,
 					&points,
@@ -1880,9 +1880,9 @@ void PhysicalBoneSpatialGizmoPlugin::redraw(EditorSpatialGizmo *p_gizmo) {
 			const PhysicalBone::HingeJointData *hjd(static_cast<const PhysicalBone::HingeJointData *>(physical_bone->get_joint_data()));
 			JointSpatialGizmoPlugin::CreateHingeJointGizmo(
 					physical_bone->get_joint_offset(),
-					physical_bone->get_global_transform() * physical_bone->get_joint_offset(),
-					pb->get_global_transform(),
-					pbp->get_global_transform(),
+					transform_joint,
+					transform_body_a,
+					transform_body_b,
 					hjd->angular_limit_lower,
 					hjd->angular_limit_upper,
 					hjd->angular_limit_enabled,
@@ -1895,9 +1895,9 @@ void PhysicalBoneSpatialGizmoPlugin::redraw(EditorSpatialGizmo *p_gizmo) {
 			const PhysicalBone::SliderJointData *sjd(static_cast<const PhysicalBone::SliderJointData *>(physical_bone->get_joint_data()));
 			JointSpatialGizmoPlugin::CreateSliderJointGizmo(
 					physical_bone->get_joint_offset(),
-					physical_bone->get_global_transform() * physical_bone->get_joint_offset(),
-					pb->get_global_transform(),
-					pbp->get_global_transform(),
+					transform_joint,
+					transform_body_a,
+					transform_body_b,
 					sjd->angular_limit_lower,
 					sjd->angular_limit_upper,
 					sjd->linear_limit_lower,
@@ -1912,9 +1912,9 @@ void PhysicalBoneSpatialGizmoPlugin::redraw(EditorSpatialGizmo *p_gizmo) {
 			JointSpatialGizmoPlugin::CreateGeneric6DOFJointGizmo(
 					physical_bone->get_joint_offset(),
 
-					physical_bone->get_global_transform() * physical_bone->get_joint_offset(),
-					pb->get_global_transform(),
-					pbp->get_global_transform(),
+					transform_joint,
+					transform_body_a,
+					transform_body_b,
 
 					sdofjd->axis_data[0].angular_limit_lower,
 					sdofjd->axis_data[0].angular_limit_upper,

@@ -45,12 +45,26 @@ class Joint : public Spatial {
 	NodePath a;
 	NodePath b;
 
+	Node *node_a;
+	Node *node_b;
+
 	int solver_priority;
 	bool exclude_from_collision;
 
-protected:
 	void _update_joint(bool p_only_free = false);
 
+	void _disable_joint();
+	void _enable_joint();
+
+	void _tree_entered_node_a();
+	void _tree_entered_node_b();
+
+	void _tree_exited_node_a();
+	void _tree_exited_node_b();
+
+	void _changed_callback(Object *p_changed, const char *p_prop);
+
+protected:
 	void _notification(int p_what);
 
 	virtual RID _configure_joint(PhysicsBody *body_a, PhysicsBody *body_b) = 0;
