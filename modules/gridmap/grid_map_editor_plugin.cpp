@@ -1151,7 +1151,8 @@ void GridMapEditor::_update_cursor_instance() {
 			if (!mesh.is_null() && mesh->get_rid().is_valid()) {
 
 				cursor_instance = VisualServer::get_singleton()->instance_create2(mesh->get_rid(), get_tree()->get_root()->get_world()->get_scenario());
-				VisualServer::get_singleton()->instance_set_transform(cursor_instance, cursor_transform);
+				Transform instance_transform = cursor_transform * node->get_mesh_library()->get_item_mesh_transform(selected_palette);
+				VisualServer::get_singleton()->instance_set_transform(cursor_instance, instance_transform);
 			}
 		}
 	}

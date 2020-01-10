@@ -472,6 +472,8 @@ bool GridMap::_octant_update(const OctantKey &p_key) {
 					multimesh_items[c.item] = List<Pair<Transform, IndexKey> >();
 				}
 
+				xform *= mesh_library->get_item_mesh_transform(c.item);
+
 				Pair<Transform, IndexKey> p;
 				p.first = xform;
 				p.second = E->get();
@@ -955,6 +957,8 @@ Array GridMap::get_meshes() {
 		xform.set_origin(cellpos * cell_size + ofs);
 		xform.basis.scale(Vector3(cell_scale, cell_scale, cell_scale));
 
+		xform *= mesh_library->get_item_mesh_transform(id);
+
 		meshes.push_back(xform);
 		meshes.push_back(mesh);
 	}
@@ -1007,6 +1011,8 @@ void GridMap::make_baked_meshes(bool p_gen_lightmap_uv, float p_lightmap_uv_texe
 		xform.basis.set_orthogonal_index(E->get().rot);
 		xform.set_origin(cellpos * cell_size + ofs);
 		xform.basis.scale(Vector3(cell_scale, cell_scale, cell_scale));
+
+		xform *= mesh_library->get_item_mesh_transform(item);
 
 		OctantKey ok;
 		ok.x = key.x / octant_size;

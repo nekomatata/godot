@@ -111,6 +111,7 @@ void MeshLibraryEditor::_import_scene(Node *p_scene, Ref<MeshLibrary> p_library,
 		}
 
 		p_library->set_item_mesh(id, mesh);
+		p_library->set_item_mesh_transform(id, mi->get_transform());
 		mesh_instances[id] = mi;
 
 		Vector<MeshLibrary::ShapeData> collisions;
