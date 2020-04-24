@@ -628,9 +628,9 @@ void RigidBodyPhysX::spOv_update() {
 		ERR_CONTINUE(!current_area);
 		ERR_CONTINUE(PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED == current_area->get_spOv_mode());
 
-		Vector3 support_gravity = Vector3(1.0, 1.0, 1.0);
+		Vector3 support_gravity;
 		if (current_area->is_spOv_gravity_point()) {
-			Vector3 support_gravity = current_area->get_transform().xform(current_area->get_spOv_gravity_vector()) - get_transform().get_origin();
+			support_gravity = current_area->get_transform().xform(current_area->get_spOv_gravity_vector()) - get_transform().get_origin();
 			real_t distance_mag = support_gravity.length();
 			if (distance_mag == 0) {
 				support_gravity = Vector3();
