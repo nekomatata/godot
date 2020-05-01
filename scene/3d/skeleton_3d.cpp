@@ -54,6 +54,10 @@ RID SkinReference::get_skeleton() const {
 	return skeleton;
 }
 
+Skeleton3D *SkinReference::get_skeleton_node() const {
+	return skeleton_node;
+}
+
 Ref<Skin> SkinReference::get_skin() const {
 	return skin;
 }
@@ -372,6 +376,7 @@ void Skeleton3D::_notification(int p_what) {
 			}
 
 			dirty = false;
+			emit_signal("skeleton_updated");
 		} break;
 
 #ifndef _3D_DISABLED
@@ -933,6 +938,8 @@ void Skeleton3D::_bind_methods() {
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "animate_physical_bones"), "set_animate_physical_bones", "get_animate_physical_bones");
 #endif // _3D_DISABLED
+
+	ADD_SIGNAL(MethodInfo("skeleton_updated"));
 
 	BIND_CONSTANT(NOTIFICATION_UPDATE_SKELETON);
 }

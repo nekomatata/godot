@@ -34,6 +34,7 @@
 #include "core/core_string_names.h"
 #include "physics_body_3d.h"
 #include "scene/resources/material.h"
+#include "servers/rendering/subdivision.h"
 #include "skeleton_3d.h"
 
 bool MeshInstance3D::_set(const StringName &p_name, const Variant &p_value) {
@@ -117,6 +118,8 @@ void MeshInstance3D::set_mesh(const Ref<Mesh> &p_mesh) {
 
 	mesh = p_mesh;
 
+	_update_subdiv();
+
 	blend_shape_tracks.clear();
 	if (mesh.is_valid()) {
 
@@ -131,7 +134,8 @@ void MeshInstance3D::set_mesh(const Ref<Mesh> &p_mesh) {
 		mesh->connect(CoreStringNames::get_singleton()->changed, callable_mp(this, &MeshInstance3D::_mesh_changed));
 		materials.resize(mesh->get_surface_count());
 
-		set_base(mesh->get_rid());
+		RID render_mesh = subdiv_mesh ? subdiv_mesh->get_rid() : mesh->get_rid();
+		set_base(render_mesh);
 	} else {
 
 		set_base(RID());
@@ -162,13 +166,77 @@ void MeshInstance3D::_resolve_skeleton_path() {
 		}
 	}
 
+	if (skin_ref.is_valid() && subdiv_mesh) {
+		ERR_FAIL_COND(!skin_ref->get_skeleton_node());
+		skin_ref->get_skeleton_node()->disconnect("skeleton_updated", callable_mp(this, &MeshInstance3D::_update_subdiv_vertices));
+	}
+
 	skin_ref = new_skin_reference;
 
 	if (skin_ref.is_valid()) {
-		RenderingServer::get_singleton()->instance_attach_skeleton(get_instance(), skin_ref->get_skeleton());
+		if (subdiv_mesh) {
+			ERR_FAIL_COND(!skin_ref->get_skeleton_node());
+			skin_ref->get_skeleton_node()->connect("skeleton_updated", callable_mp(this, &MeshInstance3D::_update_subdiv_vertices));
+
+			RenderingServer::get_singleton()->instance_attach_skeleton(get_instance(), RID());
+		} else {
+			RenderingServer::get_singleton()->instance_attach_skeleton(get_instance(), skin_ref->get_skeleton());
+		}
 	} else {
 		RenderingServer::get_singleton()->instance_attach_skeleton(get_instance(), RID());
 	}
+}
+
+void MeshInstance3D::_update_subdiv() {
+	if ((subdiv_level == 0) || mesh.is_null()) {
+		if (subdiv_mesh) {
+			SubdivisionSystem *subdivision_system = SubdivisionSystem::get_subdivision_system();
+			ERR_FAIL_COND(!subdivision_system);
+			subdivision_system->destroy_mesh_subdivision(subdiv_mesh);
+			subdiv_mesh = nullptr;
+
+			if (skin_ref.is_valid()) {
+				ERR_FAIL_COND(!skin_ref->get_skeleton_node());
+				skin_ref->get_skeleton_node()->disconnect("skeleton_updated", callable_mp(this, &MeshInstance3D::_update_subdiv_vertices));
+
+				RenderingServer::get_singleton()->instance_attach_skeleton(get_instance(), skin_ref->get_skeleton());
+			}
+		}
+		return;
+	}
+
+	if (!subdiv_mesh) {
+		SubdivisionSystem *subdivision_system = SubdivisionSystem::get_subdivision_system();
+		ERR_FAIL_COND(!subdivision_system);
+		subdiv_mesh = subdivision_system->create_mesh_subdivision(mesh, subdiv_level);
+
+		if (subdiv_mesh && skin_ref.is_valid()) {
+			ERR_FAIL_COND(!skin_ref->get_skeleton_node());
+			skin_ref->get_skeleton_node()->connect("skeleton_updated", callable_mp(this, &MeshInstance3D::_update_subdiv_vertices));
+
+			RenderingServer::get_singleton()->instance_attach_skeleton(get_instance(), RID());
+		}
+	} else {
+		subdiv_mesh->update_subdivision(mesh, subdiv_level);
+	}
+
+	if (skin_ref.is_valid()) {
+		// Intialize from current skeleton pose
+		_update_subdiv_vertices();
+	}
+}
+
+void MeshInstance3D::_update_subdiv_vertices() {
+	if (!subdiv_mesh) {
+		return;
+	}
+
+	ERR_FAIL_COND(skin_ref.is_null());
+
+	RID skeleton = skin_ref->get_skeleton();
+	ERR_FAIL_COND(!skeleton.is_valid());
+
+	subdiv_mesh->update_skinning(skeleton);
 }
 
 void MeshInstance3D::set_skin(const Ref<Skin> &p_skin) {
@@ -325,9 +393,46 @@ Ref<Material> MeshInstance3D::get_active_material(int p_surface) const {
 	return Ref<Material>();
 }
 
+void MeshInstance3D::set_subdiv_level(int p_level) {
+	ERR_FAIL_COND(p_level < 0);
+
+	if (p_level == subdiv_level) {
+		return;
+	}
+
+	subdiv_level = p_level;
+
+	if (mesh.is_null()) {
+		return;
+	}
+
+	_update_subdiv();
+
+	RID render_mesh = subdiv_mesh ? subdiv_mesh->get_rid() : mesh->get_rid();
+	if (render_mesh != get_base()) {
+		set_base(render_mesh);
+
+		// Update instance materials after switching mesh
+		int surface_count = mesh->get_surface_count();
+		for (int surface_index = 0; surface_index < surface_count; ++surface_index) {
+			if (materials[surface_index].is_valid()) {
+				RenderingServer::get_singleton()->instance_set_surface_material(get_instance(), surface_index, materials[surface_index]->get_rid());
+			}
+		}
+	}
+}
+
+int MeshInstance3D::get_subdiv_level() const {
+	return subdiv_level;
+}
+
 void MeshInstance3D::_mesh_changed() {
 
 	materials.resize(mesh->get_surface_count());
+
+	if (subdiv_mesh) {
+		subdiv_mesh->update_subdivision(mesh, subdiv_level);
+	}
 }
 
 void MeshInstance3D::create_debug_tangents() {
@@ -419,6 +524,9 @@ void MeshInstance3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_surface_material", "surface"), &MeshInstance3D::get_surface_material);
 	ClassDB::bind_method(D_METHOD("get_active_material", "surface"), &MeshInstance3D::get_active_material);
 
+	ClassDB::bind_method(D_METHOD("set_subdiv_level", "level"), &MeshInstance3D::set_subdiv_level);
+	ClassDB::bind_method(D_METHOD("get_subdiv_level"), &MeshInstance3D::get_subdiv_level);
+
 	ClassDB::bind_method(D_METHOD("create_trimesh_collision"), &MeshInstance3D::create_trimesh_collision);
 	ClassDB::set_method_flags("MeshInstance3D", "create_trimesh_collision", METHOD_FLAGS_DEFAULT);
 	ClassDB::bind_method(D_METHOD("create_convex_collision"), &MeshInstance3D::create_convex_collision);
@@ -431,11 +539,17 @@ void MeshInstance3D::_bind_methods() {
 	ADD_GROUP("Skeleton", "");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "skin", PROPERTY_HINT_RESOURCE_TYPE, "Skin"), "set_skin", "get_skin");
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "skeleton", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Skeleton3D"), "set_skeleton_path", "get_skeleton_path");
+
+	ADD_GROUP("Subdivison", "subdiv_");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "subdiv_level", PROPERTY_HINT_RANGE, "0,5"), "set_subdiv_level", "get_subdiv_level");
+
 	ADD_GROUP("", "");
 }
 
 MeshInstance3D::MeshInstance3D() {
 	skeleton_path = NodePath("..");
+	subdiv_level = 0;
+	subdiv_mesh = nullptr;
 }
 
 MeshInstance3D::~MeshInstance3D() {
