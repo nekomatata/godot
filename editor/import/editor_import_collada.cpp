@@ -69,6 +69,7 @@ struct ColladaImport {
 	bool force_make_tangents;
 	bool apply_mesh_xform_to_vertices;
 	bool use_mesh_builtin_materials;
+	bool store_polygon_data;
 	float bake_fps;
 
 	Map<String, NodeMap> node_map; //map from collada node to engine node
@@ -106,6 +107,8 @@ struct ColladaImport {
 		found_directional = false;
 		force_make_tangents = false;
 		apply_mesh_xform_to_vertices = true;
+		use_mesh_builtin_materials = false;
+		store_polygon_data = false;
 		bake_fps = 15;
 	}
 };
@@ -701,6 +704,8 @@ Error ColladaImport::_create_mesh_surfaces(bool p_optimize, Ref<ArrayMesh> &p_me
 		Set<Collada::Vertex> vertex_set; //vertex set will be the vertices
 		List<int> indices_list; //indices will be the indices
 
+		Mesh::PolygonData polygon_data;
+
 		/**************************/
 		/* CREATE PRIMITIVE ARRAY */
 		/**************************/
@@ -820,6 +825,14 @@ Error ColladaImport::_create_mesh_surfaces(bool p_optimize, Ref<ArrayMesh> &p_me
 					index = vertex_set.size();
 					vertex.idx = index;
 					vertex_set.insert(vertex);
+
+					if (store_polygon_data) {
+						polygon_data.vertices.push_back(vertex.vertex);
+					}
+				}
+
+				if (store_polygon_data) {
+					polygon_data.indices.push_back(index);
 				}
 
 				//build triangles if needed
@@ -991,6 +1004,11 @@ Error ColladaImport::_create_mesh_surfaces(bool p_optimize, Ref<ArrayMesh> &p_me
 					p_mesh->surface_set_material(surface, material);
 				}
 				p_mesh->surface_set_name(surface, material->get_name());
+			}
+
+			if (store_polygon_data) {
+				polygon_data.polygons = p.polygons;
+				p_mesh->surface_set_polygon_data(surface, polygon_data);
 			}
 		}
 
@@ -1772,6 +1790,7 @@ Node *EditorSceneImporterCollada::import_scene(const String &p_path, uint32_t p_
 
 	state.use_mesh_builtin_materials = !(p_flags & IMPORT_MATERIALS_IN_INSTANCES);
 	state.bake_fps = p_bake_fps;
+	state.store_polygon_data = (p_flags & IMPORT_STORE_POLYGON_DATA);
 
 	Error err = state.load(p_path, flags, p_flags & EditorSceneImporter::IMPORT_GENERATE_TANGENT_ARRAYS, p_flags & EditorSceneImporter::IMPORT_USE_COMPRESSION);
 

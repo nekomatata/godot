@@ -1166,6 +1166,7 @@ void ResourceImporterScene::get_import_options(List<ImportOption> *r_options, in
 	r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "materials/keep_on_reimport"), materials_out));
 	r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/compress"), true));
 	r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/ensure_tangents"), true));
+	r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/store_polygon_data"), false));
 	r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "meshes/storage", PROPERTY_HINT_ENUM, "Built-In,Files (.mesh),Files (.tres)"), meshes_out ? 1 : 0));
 	r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "meshes/light_baking", PROPERTY_HINT_ENUM, "Disabled,Enable,Gen Lightmaps", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), 0));
 	r_options->push_back(ImportOption(PropertyInfo(Variant::REAL, "meshes/lightmap_texel_size", PROPERTY_HINT_RANGE, "0.001,100,0.001"), 0.1));
@@ -1308,6 +1309,9 @@ Error ResourceImporterScene::import(const String &p_source_file, const String &p
 
 	if (bool(p_options["meshes/ensure_tangents"]))
 		import_flags |= EditorSceneImporter::IMPORT_GENERATE_TANGENT_ARRAYS;
+
+	if (bool(p_options["meshes/store_polygon_data"]))
+		import_flags |= EditorSceneImporter::IMPORT_STORE_POLYGON_DATA;
 
 	if (int(p_options["materials/location"]) == 0)
 		import_flags |= EditorSceneImporter::IMPORT_MATERIALS_IN_INSTANCES;

@@ -633,6 +633,26 @@ bool ArrayMesh::_set(const StringName &p_name, const Variant &p_value) {
 		return true;
 	}
 
+	if (sname.begins_with("polygon_data")) {
+		int idx = sname.get_slicec('/', 1).to_int();
+
+		ERR_FAIL_INDEX_V(idx, surfaces.size(), false);
+		polygon_data.resize(surfaces.size());
+		PolygonData &surface_polygon_data = polygon_data.write[idx];
+
+		String what = sname.get_slicec('/', 2);
+		if (what == "polygons") {
+			surface_polygon_data.polygons = p_value;
+		} else if (what == "indices") {
+			surface_polygon_data.indices = p_value;
+		} else if (what == "vertices") {
+			surface_polygon_data.vertices = p_value;
+		} else {
+			return false;
+		}
+		return true;
+	}
+
 	if (!sname.begins_with("surfaces"))
 		return false;
 
@@ -741,8 +761,26 @@ bool ArrayMesh::_get(const StringName &p_name, Variant &r_ret) const {
 		else if (what == "name")
 			r_ret = surface_get_name(idx);
 		return true;
-	} else if (!sname.begins_with("surfaces"))
+	} else if (sname.begins_with("polygon_data")) {
+		int idx = sname.get_slicec('/', 1).to_int();
+
+		ERR_FAIL_INDEX_V(idx, polygon_data.size(), false);
+		const PolygonData &surface_polygon_data = polygon_data[idx];
+
+		String what = sname.get_slicec('/', 2);
+		if (what == "polygons") {
+			r_ret = surface_polygon_data.polygons;
+		} else if (what == "indices") {
+			r_ret = surface_polygon_data.indices;
+		} else if (what == "vertices") {
+			r_ret = surface_polygon_data.vertices;
+		} else {
+			return false;
+		}
+		return true;
+	} else if (!sname.begins_with("surfaces")) {
 		return false;
+	}
 
 	int idx = sname.get_slicec('/', 1).to_int();
 	ERR_FAIL_INDEX_V(idx, surfaces.size(), false);
@@ -806,6 +844,12 @@ void ArrayMesh::_get_property_list(List<PropertyInfo> *p_list) const {
 			p_list->push_back(PropertyInfo(Variant::OBJECT, "surface_" + itos(i + 1) + "/material", PROPERTY_HINT_RESOURCE_TYPE, "ShaderMaterial,SpatialMaterial", PROPERTY_USAGE_EDITOR));
 		}
 	}
+
+	for (int i = 0; i < polygon_data.size(); i++) {
+		p_list->push_back(PropertyInfo(Variant::ARRAY, "polygon_data/" + itos(i) + "/polygons", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL));
+		p_list->push_back(PropertyInfo(Variant::ARRAY, "polygon_data/" + itos(i) + "/indices", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL));
+		p_list->push_back(PropertyInfo(Variant::ARRAY, "polygon_data/" + itos(i) + "/vertices", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL));
+	}
 }
 
 void ArrayMesh::_recompute_aabb() {
@@ -829,6 +873,10 @@ void ArrayMesh::add_surface(uint32_t p_format, PrimitiveType p_primitive, const 
 	s.is_2d = p_format & ARRAY_FLAG_USE_2D_VERTICES;
 	surfaces.push_back(s);
 	_recompute_aabb();
+
+	if (!polygon_data.empty()) {
+		polygon_data.resize(surfaces.size());
+	}
 
 	VisualServer::get_singleton()->mesh_add_surface(mesh, p_format, (VS::PrimitiveType)p_primitive, p_array, p_vertex_count, p_index_array, p_index_count, p_aabb, p_blend_shapes, p_bone_aabbs);
 }
@@ -863,6 +911,10 @@ void ArrayMesh::add_surface_from_arrays(PrimitiveType p_primitive, const Array &
 		s.aabb = aabb;
 		s.is_2d = arr.get_type() == Variant::POOL_VECTOR2_ARRAY;
 		surfaces.push_back(s);
+
+		if (!polygon_data.empty()) {
+			polygon_data.resize(surfaces.size());
+		}
 
 		_recompute_aabb();
 	}
@@ -939,6 +991,11 @@ void ArrayMesh::surface_remove(int p_idx) {
 	ERR_FAIL_INDEX(p_idx, surfaces.size());
 	VisualServer::get_singleton()->mesh_remove_surface(mesh, p_idx);
 	surfaces.remove(p_idx);
+
+	if (!polygon_data.empty()) {
+		ERR_FAIL_INDEX(p_idx, polygon_data.size());
+		polygon_data.remove(p_idx);
+	}
 
 	clear_cache();
 	_recompute_aabb();
@@ -1049,9 +1106,30 @@ void ArrayMesh::add_surface_from_mesh_data(const Geometry::MeshData &p_mesh_data
 	clear_cache();
 
 	surfaces.push_back(s);
+
+	if (!polygon_data.empty()) {
+		polygon_data.resize(surfaces.size());
+	}
+
 	_change_notify();
 
 	emit_changed();
+}
+
+bool ArrayMesh::has_polygon_data() const {
+	return !polygon_data.empty();
+}
+
+void ArrayMesh::surface_set_polygon_data(int p_idx, const PolygonData &p_polygon_data) {
+	ERR_FAIL_INDEX(p_idx, surfaces.size());
+
+	polygon_data.resize(surfaces.size());
+	polygon_data.write[p_idx] = p_polygon_data;
+}
+
+const Mesh::PolygonData *ArrayMesh::surface_get_polygon_data(int p_idx) const {
+	ERR_FAIL_INDEX_V(p_idx, polygon_data.size(), NULL);
+	return &polygon_data[p_idx];
 }
 
 RID ArrayMesh::get_rid() const {
@@ -1188,6 +1266,10 @@ Error ArrayMesh::lightmap_unwrap(const Transform &p_base_transform, float p_texe
 		}
 
 		surfaces.push_back(s);
+
+		if (!polygon_data.empty()) {
+			polygon_data.resize(surfaces.size());
+		}
 	}
 
 	//unwrap
@@ -1347,6 +1429,7 @@ void ArrayMesh::_bind_methods() {
 void ArrayMesh::reload_from_file() {
 	VisualServer::get_singleton()->mesh_clear(mesh);
 	surfaces.clear();
+	polygon_data.clear();
 	clear_blend_shapes();
 	clear_cache();
 

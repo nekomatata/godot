@@ -38,6 +38,8 @@
 
 #include "core/local_vector.h"
 
+class MeshSubdivision;
+
 class MeshInstance : public GeometryInstance {
 
 	GDCLASS(MeshInstance, GeometryInstance);
@@ -48,6 +50,9 @@ protected:
 	Ref<Skin> skin_internal;
 	Ref<SkinReference> skin_ref;
 	NodePath skeleton_path;
+
+	int subdiv_level;
+	MeshSubdivision *subdiv_mesh;
 
 	struct SoftwareSkinning {
 		enum Flags {
@@ -90,6 +95,9 @@ protected:
 	void _mesh_changed();
 	void _resolve_skeleton_path();
 
+	void _update_subdiv();
+	void _update_subdiv_vertices();
+	
 	bool _is_software_skinning_enabled() const;
 	static bool _is_global_software_skinning_enabled();
 
@@ -118,8 +126,11 @@ public:
 	void set_surface_material(int p_surface, const Ref<Material> &p_material);
 	Ref<Material> get_surface_material(int p_surface) const;
 	Ref<Material> get_active_material(int p_surface) const;
-
+	
 	virtual void set_material_override(const Ref<Material> &p_material);
+
+	void set_subdiv_level(int p_level);
+	int get_subdiv_level() const;
 
 	void set_software_skinning_transform_normals(bool p_enabled);
 	bool is_software_skinning_transform_normals_enabled() const;

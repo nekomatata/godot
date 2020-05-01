@@ -130,6 +130,16 @@ public:
 	virtual int get_blend_shape_count() const = 0;
 	virtual StringName get_blend_shape_name(int p_index) const = 0;
 
+	struct PolygonData {
+		Vector<float> polygons;
+		Vector<float> indices;
+		Vector<Vector3> vertices;
+	};
+
+	virtual bool has_polygon_data() const { return false; }
+	virtual void surface_set_polygon_data(int p_idx, const PolygonData &p_polygon_data) {}
+	virtual const PolygonData *surface_get_polygon_data(int p_idx) const { return NULL; }
+
 	PoolVector<Face3> get_faces() const;
 	Ref<TriangleMesh> generate_triangle_mesh() const;
 	void generate_debug_mesh_lines(Vector<Vector3> &r_lines);
@@ -168,6 +178,7 @@ private:
 		bool is_2d;
 	};
 	Vector<Surface> surfaces;
+	Vector<PolygonData> polygon_data;
 	RID mesh;
 	AABB aabb;
 	BlendShapeMode blend_shape_mode;
@@ -221,6 +232,10 @@ public:
 	String surface_get_name(int p_idx) const;
 
 	void add_surface_from_mesh_data(const Geometry::MeshData &p_mesh_data);
+
+	bool has_polygon_data() const;
+	void surface_set_polygon_data(int p_idx, const PolygonData &p_polygon_data);
+	const PolygonData *surface_get_polygon_data(int p_idx) const;
 
 	void set_custom_aabb(const AABB &p_custom);
 	AABB get_custom_aabb() const;
