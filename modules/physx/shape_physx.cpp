@@ -55,8 +55,7 @@
 
 using namespace physx;
 
-ShapePhysX::ShapePhysX() :
-		margin(0.04) {
+ShapePhysX::ShapePhysX() {
 }
 
 ShapePhysX::~ShapePhysX() {
@@ -115,7 +114,9 @@ void ShapePhysX::add_owner(ShapeOwnerPhysX *p_owner) {
 
 void ShapePhysX::remove_owner(ShapeOwnerPhysX *p_owner) {
 	Map<ShapeOwnerPhysX *, int>::Element *E = owners.find(p_owner);
-	if (!E) return;
+	if (!E) {
+		return;
+	}
 	E->get()--;
 	if (0 >= E->get()) {
 		owners.erase(E);
@@ -132,8 +133,7 @@ const Map<ShapeOwnerPhysX *, int> &ShapePhysX::get_owners() const {
 
 /* PLANE */
 
-PlaneShapePhysX::PlaneShapePhysX() :
-		plane(1.0, 0.0, 0.0, 0.0) {
+PlaneShapePhysX::PlaneShapePhysX() {
 }
 
 void PlaneShapePhysX::set_data(PxCooking &p_cooking, const Variant &p_data) {
@@ -168,8 +168,7 @@ void PlaneShapePhysX::adjust_transform(PxTransform &p_local_transform) const {
 
 /* Sphere */
 
-SphereShapePhysX::SphereShapePhysX() :
-		radius(0.0) {
+SphereShapePhysX::SphereShapePhysX() {
 }
 
 void SphereShapePhysX::set_data(PxCooking &p_cooking, const Variant &p_data) {
@@ -196,8 +195,7 @@ bool SphereShapePhysX::create_geometry(PxGeometryHolder &p_geometry_holder, cons
 }
 
 /* Box */
-BoxShapePhysX::BoxShapePhysX() :
-		half_extents(0.0) {
+BoxShapePhysX::BoxShapePhysX() {
 }
 
 void BoxShapePhysX::set_data(PxCooking &p_cooking, const Variant &p_data) {
@@ -231,9 +229,7 @@ bool BoxShapePhysX::create_geometry(PxGeometryHolder &p_geometry_holder, const P
 
 const PxQuat CapsuleShapePhysX::CAPSULE_SETUP_ROTATION(PxHalfPi, PxVec3(0.0, 0.0, 1.0));
 
-CapsuleShapePhysX::CapsuleShapePhysX() :
-		radius(0.0),
-		height(0.0) {
+CapsuleShapePhysX::CapsuleShapePhysX() {
 }
 
 void CapsuleShapePhysX::set_data(PxCooking &p_cooking, const Variant &p_data) {
@@ -275,9 +271,7 @@ void CapsuleShapePhysX::adjust_transform(PxTransform &p_local_transform) const {
 
 /* Cylinder */
 
-CylinderShapePhysX::CylinderShapePhysX() :
-		radius(0.0),
-		height(0.0) {
+CylinderShapePhysX::CylinderShapePhysX() {
 }
 
 void CylinderShapePhysX::set_data(PxCooking &p_cooking, const Variant &p_data) {
@@ -311,8 +305,7 @@ bool CylinderShapePhysX::create_geometry(PxGeometryHolder &p_geometry_holder, co
 
 /* Convex polygon */
 
-ConvexPolygonShapePhysX::ConvexPolygonShapePhysX() :
-		convex_mesh(nullptr) {
+ConvexPolygonShapePhysX::ConvexPolygonShapePhysX() {
 }
 
 ConvexPolygonShapePhysX::~ConvexPolygonShapePhysX() {
@@ -385,8 +378,7 @@ bool ConvexPolygonShapePhysX::create_geometry(PxGeometryHolder &p_geometry_holde
 
 /* Concave polygon */
 
-ConcavePolygonShapePhysX::ConcavePolygonShapePhysX() :
-		triangle_mesh(nullptr) {
+ConcavePolygonShapePhysX::ConcavePolygonShapePhysX() {
 }
 
 ConcavePolygonShapePhysX::~ConcavePolygonShapePhysX() {
@@ -475,8 +467,7 @@ PxShape *ConcavePolygonShapePhysX::create(const ShapeInstancePhysX &p_instance, 
 
 /* Height map shape */
 
-HeightMapShapePhysX::HeightMapShapePhysX() :
-		height_field(nullptr) {
+HeightMapShapePhysX::HeightMapShapePhysX() {
 }
 
 HeightMapShapePhysX::~HeightMapShapePhysX() {
@@ -609,9 +600,7 @@ bool HeightMapShapePhysX::create_geometry(PxGeometryHolder &p_geometry_holder, c
 }
 
 /* Ray shape */
-RayShapePhysX::RayShapePhysX() :
-		length(1.0),
-		slips_on_slope(false) {
+RayShapePhysX::RayShapePhysX() {
 }
 
 void RayShapePhysX::set_data(PxCooking &p_cooking, const Variant &p_data) {

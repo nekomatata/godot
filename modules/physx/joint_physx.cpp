@@ -35,10 +35,7 @@
 
 using namespace physx;
 
-JointPhysX::JointPhysX() :
-		space(nullptr),
-		joint(nullptr),
-		disabled_collision(true) {
+JointPhysX::JointPhysX() {
 }
 
 JointPhysX::~JointPhysX() {

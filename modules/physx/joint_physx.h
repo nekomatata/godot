@@ -45,9 +45,9 @@ class PxJoint;
 
 class JointPhysX : public RIDPhysX {
 protected:
-	SpacePhysX *space;
-	physx::PxJoint *joint;
-	bool disabled_collision;
+	SpacePhysX *space = nullptr;
+	physx::PxJoint *joint = nullptr;
+	bool disabled_collision = true;
 
 public:
 	JointPhysX();

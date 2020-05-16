@@ -61,7 +61,7 @@ class PxShape;
 
 class ShapePhysX : public RIDPhysX {
 	Map<ShapeOwnerPhysX *, int> owners;
-	float margin;
+	float margin = 0.04;
 
 protected:
 	void notify_shape_changed();
@@ -91,7 +91,7 @@ public:
 };
 
 class PlaneShapePhysX : public ShapePhysX {
-	physx::PxPlane plane;
+	physx::PxPlane plane = physx::PxPlane(1.0, 0.0, 0.0, 0.0);
 
 public:
 	PlaneShapePhysX();
@@ -108,7 +108,7 @@ private:
 };
 
 class SphereShapePhysX : public ShapePhysX {
-	float radius;
+	float radius = 0.0;
 
 public:
 	SphereShapePhysX();
@@ -124,7 +124,7 @@ private:
 };
 
 class BoxShapePhysX : public ShapePhysX {
-	physx::PxVec3 half_extents;
+	physx::PxVec3 half_extents = physx::PxVec3(0.0);
 
 public:
 	BoxShapePhysX();
@@ -140,8 +140,8 @@ private:
 };
 
 class CapsuleShapePhysX : public ShapePhysX {
-	float radius;
-	float height;
+	float radius = 0.0;
+	float height = 0.0;
 
 	static const physx::PxQuat CAPSULE_SETUP_ROTATION;
 
@@ -161,8 +161,8 @@ private:
 };
 
 class CylinderShapePhysX : public ShapePhysX {
-	float radius;
-	float height;
+	float radius = 0.0;
+	float height = 0.0;
 
 public:
 	CylinderShapePhysX();
@@ -179,7 +179,7 @@ private:
 };
 
 class ConvexPolygonShapePhysX : public ShapePhysX {
-	physx::PxConvexMesh *convex_mesh;
+	physx::PxConvexMesh *convex_mesh = nullptr;
 	Vector<physx::PxVec3> points;
 
 public:
@@ -198,7 +198,7 @@ private:
 };
 
 class ConcavePolygonShapePhysX : public ShapePhysX {
-	physx::PxTriangleMesh *triangle_mesh;
+	physx::PxTriangleMesh *triangle_mesh = nullptr;
 	Vector<physx::PxVec3> points;
 	Vector<uint32_t> triangles;
 
@@ -219,12 +219,12 @@ private:
 };
 
 class HeightMapShapePhysX : public ShapePhysX {
-	physx::PxHeightField *height_field;
+	physx::PxHeightField *height_field = nullptr;
 	Vector<physx::PxHeightFieldSample> samples;
-	int width;
-	int depth;
-	float min_height;
-	float max_height;
+	int width = 0;
+	int depth = 0;
+	float min_height = 0.0;
+	float max_height = 0.0;
 
 public:
 	HeightMapShapePhysX();
@@ -246,8 +246,8 @@ private:
 };
 
 class RayShapePhysX : public ShapePhysX {
-	float length;
-	bool slips_on_slope;
+	float length = 1.0;
+	bool slips_on_slope = false;
 
 public:
 	RayShapePhysX();

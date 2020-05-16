@@ -58,24 +58,24 @@ public:
 	};
 
 private:
-	PhysicsServer3D::BodyMode mode;
-	physx::PxRigidDynamic *px_rigid_dynamic;
-	uint16_t locked_axis;
-	real_t mass;
-	real_t gravity_scale;
-	physx::PxVec3 px_total_gravity;
-	real_t linear_damping;
-	real_t angular_damping;
-	bool can_sleep;
-	bool omit_force_integration;
+	PhysicsServer3D::BodyMode mode = PhysicsServer3D::BODY_MODE_RIGID;
+	physx::PxRigidDynamic *px_rigid_dynamic = nullptr;
+	uint16_t locked_axis = 0;
+	real_t mass = 1.0;
+	real_t gravity_scale = 1.0;
+	physx::PxVec3 px_total_gravity = physx::PxVec3(0.0);
+	real_t linear_damping = 0.0;
+	real_t angular_damping = 0.0;
+	bool can_sleep = true;
+	bool omit_force_integration = false;
 
-	int spOv_gravity_point_count;
-	bool spOv_need_update;
+	int spOv_gravity_point_count = 0;
+	bool spOv_need_update = false;
 
 	Vector3 applied_force;
 	Vector3 applied_torque;
 
-	ForceIntegrationCallback *force_integration_callback;
+	ForceIntegrationCallback *force_integration_callback = nullptr;
 
 	Vector<AreaPhysX *> areas_overlapped;
 

@@ -57,15 +57,15 @@ class PxPvd;
 class PhysXPhysicsServer3D : public PhysicsServer3D {
 	GDCLASS(PhysXPhysicsServer3D, PhysicsServer3D);
 
-	PhysXAllocatorCallback *allocator_callback;
-	PhysXErrorCallback *error_callback;
+	PhysXAllocatorCallback *allocator_callback = nullptr;
+	PhysXErrorCallback *error_callback = nullptr;
 
-	physx::PxFoundation *px_foundation;
-	physx::PxPhysics *px_physics;
-	physx::PxCooking *px_cooking;
-	physx::PxPvd *px_debugger;
+	physx::PxFoundation *px_foundation = nullptr;
+	physx::PxPhysics *px_physics = nullptr;
+	physx::PxCooking *px_cooking = nullptr;
+	physx::PxPvd *px_debugger = nullptr;
 
-	bool active;
+	bool active = true;
 	Vector<SpacePhysX *> active_spaces;
 
 	mutable RID_PtrOwner<SpacePhysX> space_owner;

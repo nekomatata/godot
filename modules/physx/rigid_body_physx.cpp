@@ -46,20 +46,7 @@
 using namespace physx;
 
 RigidBodyPhysX::RigidBodyPhysX() :
-		RigidCollisionObjectPhysX(CollisionObjectPhysX::TYPE_RIGID_BODY),
-		mode(PhysicsServer3D::BODY_MODE_RIGID),
-		px_rigid_dynamic(nullptr),
-		locked_axis(0),
-		mass(1.0),
-		gravity_scale(1.0),
-		px_total_gravity(0.0),
-		linear_damping(0.0),
-		angular_damping(0.0),
-		can_sleep(true),
-		omit_force_integration(false),
-		spOv_gravity_point_count(0),
-		spOv_need_update(false),
-		force_integration_callback(nullptr) {
+		RigidCollisionObjectPhysX(CollisionObjectPhysX::TYPE_RIGID_BODY) {
 }
 
 RigidBodyPhysX::~RigidBodyPhysX() {
@@ -282,25 +269,25 @@ PhysicsServer3D::BodyMode RigidBodyPhysX::get_mode() const {
 
 void RigidBodyPhysX::set_state(PhysicsServer3D::BodyState p_state, const Variant &p_variant) {
 	switch (p_state) {
-		case PhysicsServer3D::BODY_STATE_TRANSFORM:
+		case PhysicsServer3D::BODY_STATE_TRANSFORM: {
 			set_transform(p_variant);
-			break;
-		case PhysicsServer3D::BODY_STATE_LINEAR_VELOCITY:
+		} break;
+		case PhysicsServer3D::BODY_STATE_LINEAR_VELOCITY: {
 			set_linear_velocity(p_variant);
-			break;
-		case PhysicsServer3D::BODY_STATE_ANGULAR_VELOCITY:
+		} break;
+		case PhysicsServer3D::BODY_STATE_ANGULAR_VELOCITY: {
 			set_angular_velocity(p_variant);
-			break;
-		case PhysicsServer3D::BODY_STATE_SLEEPING:
+		} break;
+		case PhysicsServer3D::BODY_STATE_SLEEPING: {
 			set_sleeping(bool(p_variant));
-			break;
-		case PhysicsServer3D::BODY_STATE_CAN_SLEEP:
+		} break;
+		case PhysicsServer3D::BODY_STATE_CAN_SLEEP: {
 			can_sleep = bool(p_variant);
 			update_can_sleep_internal();
 			if (!can_sleep) {
 				set_sleeping(false);
 			}
-			break;
+		} break;
 	}
 }
 

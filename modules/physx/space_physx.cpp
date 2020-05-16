@@ -46,14 +46,7 @@
 
 using namespace physx;
 
-SpacePhysX::SpacePhysX() :
-		px_scene(nullptr),
-		direct_access(nullptr),
-		gravity_direction(0, -1, 0),
-		gravity_magnitude(9.81),
-		linear_damping(0.0),
-		angular_damping(0.0),
-		delta_time(0.0) {
+SpacePhysX::SpacePhysX() {
 	create_scene_internal();
 	direct_access = memnew(PhysXPhysicsDirectSpaceState3D(this));
 }
@@ -90,27 +83,27 @@ void SpacePhysX::step(float p_delta_time) {
 
 void SpacePhysX::set_param(PhysicsServer3D::AreaParameter p_param, const Variant &p_value) {
 	switch (p_param) {
-		case PhysicsServer3D::AREA_PARAM_GRAVITY:
+		case PhysicsServer3D::AREA_PARAM_GRAVITY: {
 			gravity_magnitude = p_value;
 			update_gravity_internal();
-			break;
-		case PhysicsServer3D::AREA_PARAM_GRAVITY_VECTOR:
+		} break;
+		case PhysicsServer3D::AREA_PARAM_GRAVITY_VECTOR: {
 			gravity_direction = p_value;
 			update_gravity_internal();
-			break;
+		} break;
 		case PhysicsServer3D::AREA_PARAM_LINEAR_DAMP:
 			linear_damping = p_value;
 			break;
-		case PhysicsServer3D::AREA_PARAM_ANGULAR_DAMP:
+		case PhysicsServer3D::AREA_PARAM_ANGULAR_DAMP: {
 			angular_damping = p_value;
-			break;
+		} break;
 		case PhysicsServer3D::AREA_PARAM_PRIORITY:
 		case PhysicsServer3D::AREA_PARAM_GRAVITY_IS_POINT:
 		case PhysicsServer3D::AREA_PARAM_GRAVITY_DISTANCE_SCALE:
 		case PhysicsServer3D::AREA_PARAM_GRAVITY_POINT_ATTENUATION:
-		default:
+		default: {
 			WARN_PRINT("Space area parameter " + itos(p_param) + " is not implemented in PhysX.");
-			break;
+		} break;
 	}
 }
 
@@ -128,9 +121,10 @@ Variant SpacePhysX::get_param(PhysicsServer3D::AreaParameter p_param) {
 		case PhysicsServer3D::AREA_PARAM_GRAVITY_IS_POINT:
 		case PhysicsServer3D::AREA_PARAM_GRAVITY_DISTANCE_SCALE:
 		case PhysicsServer3D::AREA_PARAM_GRAVITY_POINT_ATTENUATION:
-		default:
+		default: {
 			WARN_PRINT("Space area parameter " + itos(p_param) + " is not implemented in PhysX.");
 			return Variant();
+		}
 	}
 }
 
@@ -144,9 +138,9 @@ void SpacePhysX::set_param(PhysicsServer3D::SpaceParameter p_param, float p_valu
 		case PhysicsServer3D::SPACE_PARAM_BODY_TIME_TO_SLEEP:
 		case PhysicsServer3D::SPACE_PARAM_BODY_ANGULAR_VELOCITY_DAMP_RATIO:
 		case PhysicsServer3D::SPACE_PARAM_CONSTRAINT_DEFAULT_BIAS:
-		default:
+		default: {
 			WARN_PRINT("Space parameter " + itos(p_param) + " is not implemented in PhysX.");
-			break;
+		} break;
 	}
 }
 
@@ -160,9 +154,10 @@ float SpacePhysX::get_param(PhysicsServer3D::SpaceParameter p_param) {
 		case PhysicsServer3D::SPACE_PARAM_BODY_TIME_TO_SLEEP:
 		case PhysicsServer3D::SPACE_PARAM_BODY_ANGULAR_VELOCITY_DAMP_RATIO:
 		case PhysicsServer3D::SPACE_PARAM_CONSTRAINT_DEFAULT_BIAS:
-		default:
+		default: {
 			WARN_PRINT("Space parameter " + itos(p_param) + " is not implemented in PhysX.");
 			return 0.f;
+		}
 	}
 }
 

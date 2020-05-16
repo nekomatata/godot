@@ -50,13 +50,13 @@ class PxScene;
 } // namespace physx
 
 class SpacePhysX : public RIDPhysX {
-	physx::PxScene *px_scene;
-	PhysXPhysicsDirectSpaceState3D *direct_access;
-	Vector3 gravity_direction;
-	float gravity_magnitude;
-	float linear_damping;
-	float angular_damping;
-	float delta_time;
+	physx::PxScene *px_scene = nullptr;
+	PhysXPhysicsDirectSpaceState3D *direct_access = nullptr;
+	Vector3 gravity_direction = Vector3(0, -1, 0);
+	float gravity_magnitude = 9.81;
+	float linear_damping = 0.0;
+	float angular_damping = 0.0;
+	float delta_time = 0.0;
 	Vector<physx::PxActor *> actor_buffer;
 
 public:

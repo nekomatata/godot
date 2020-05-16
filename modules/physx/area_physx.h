@@ -50,18 +50,18 @@ public:
 	};
 
 private:
-	bool monitorable;
-	bool monitoring;
+	bool monitorable = true;
+	bool monitoring = true;
 
-	PhysicsServer3D::AreaSpaceOverrideMode spOv_mode;
-	bool spOv_gravity_point;
-	real_t spOv_gravity_point_distance_scale;
-	real_t spOv_gravity_point_attenuation;
-	Vector3 spOv_gravity_vector;
-	real_t spOv_gravity_magnitude;
-	real_t spOv_linear_damping;
-	real_t spOv_angular_damping;
-	int spOv_priority;
+	PhysicsServer3D::AreaSpaceOverrideMode spOv_mode = PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED;
+	bool spOv_gravity_point = false;
+	real_t spOv_gravity_point_distance_scale = 0.0;
+	real_t spOv_gravity_point_attenuation = 1.0;
+	Vector3 spOv_gravity_vector = Vector3(0, -1, 0);
+	real_t spOv_gravity_magnitude = 9.81;
+	real_t spOv_linear_damping = 0.1;
+	real_t spOv_angular_damping = 1.0;
+	int spOv_priority = 0;
 
 	static const int EVENT_CALLBACK_COUNT = 2;
 	InOutEventCallback event_callbacks[EVENT_CALLBACK_COUNT];

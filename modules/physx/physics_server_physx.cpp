@@ -115,14 +115,7 @@ public:
 	}
 };
 
-PhysXPhysicsServer3D::PhysXPhysicsServer3D() :
-		allocator_callback(nullptr),
-		error_callback(nullptr),
-		px_foundation(nullptr),
-		px_physics(nullptr),
-		px_cooking(nullptr),
-		px_debugger(nullptr),
-		active(true) {
+PhysXPhysicsServer3D::PhysXPhysicsServer3D() {
 	// Create PhysX callback handlers
 	allocator_callback = memnew(PhysXAllocatorCallback);
 	error_callback = memnew(PhysXErrorCallback);
@@ -282,7 +275,6 @@ RID PhysXPhysicsServer3D::space_create() {
 }
 
 void PhysXPhysicsServer3D::space_set_active(RID p_space, bool p_active) {
-
 	SpacePhysX *space = space_owner.getornull(p_space);
 	ERR_FAIL_COND(!space);
 
@@ -445,8 +437,9 @@ void PhysXPhysicsServer3D::area_clear_shapes(RID p_area) {
 	AreaPhysX *area = area_owner.getornull(p_area);
 	ERR_FAIL_COND(!area);
 
-	for (int i = area->get_shape_count(); 0 < i; --i)
+	for (int i = area->get_shape_count(); 0 < i; --i) {
 		area->remove_shape(0);
+	}
 }
 
 void PhysXPhysicsServer3D::area_set_shape_disabled(RID p_area, int p_shape_idx, bool p_disabled) {
@@ -481,7 +474,6 @@ void PhysXPhysicsServer3D::area_set_param(RID p_area, AreaParameter p_param, con
 			space->set_param(p_param, p_value);
 		}
 	} else {
-
 		AreaPhysX *area = area_owner.getornull(p_area);
 		ERR_FAIL_COND(!area);
 
@@ -579,8 +571,9 @@ void PhysXPhysicsServer3D::body_set_space(RID p_body, RID p_space) {
 		ERR_FAIL_COND(!space);
 	}
 
-	if (body->get_space() == space)
-		return; //pointles
+	if (body->get_space() == space) {
+		return;
+	}
 
 	body->set_space(space);
 }
@@ -590,8 +583,9 @@ RID PhysXPhysicsServer3D::body_get_space(RID p_body) const {
 	ERR_FAIL_COND_V(!body, RID());
 
 	SpacePhysX *space = body->get_space();
-	if (!space)
+	if (!space) {
 		return RID();
+	}
 	return space->get_self();
 }
 
@@ -608,7 +602,6 @@ PhysicsServer3D::BodyMode PhysXPhysicsServer3D::body_get_mode(RID p_body) const 
 }
 
 void PhysXPhysicsServer3D::body_add_shape(RID p_body, RID p_shape, const Transform &p_transform, bool p_disabled) {
-
 	RigidBodyPhysX *body = rigid_body_owner.getornull(p_body);
 	ERR_FAIL_COND(!body);
 
@@ -1022,8 +1015,9 @@ void PhysXPhysicsServer3D::soft_body_set_space(RID p_body, RID p_space) {
 		ERR_FAIL_COND(!space);
 	}
 
-	if (body->get_space() == space)
-		return; //pointles
+	if (body->get_space() == space) {
+		return;
+	}
 
 	body->set_space(space);*/
 }
@@ -1035,8 +1029,9 @@ RID PhysXPhysicsServer3D::soft_body_get_space(RID p_body) const {
 	ERR_FAIL_COND_V(!body, RID());
 
 	SpacePhysX *space = body->get_space();
-	if (!space)
+	if (!space) {
 		return RID();
+	}
 	return space->get_self();*/
 }
 

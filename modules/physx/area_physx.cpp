@@ -39,18 +39,7 @@
 using namespace physx;
 
 AreaPhysX::AreaPhysX() :
-		RigidCollisionObjectPhysX(CollisionObjectPhysX::TYPE_AREA),
-		monitorable(true),
-		monitoring(true),
-		spOv_mode(PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED),
-		spOv_gravity_point(false),
-		spOv_gravity_point_distance_scale(0),
-		spOv_gravity_point_attenuation(1),
-		spOv_gravity_vector(0, -1, 0),
-		spOv_gravity_magnitude(10),
-		spOv_linear_damping(0.1),
-		spOv_angular_damping(1),
-		spOv_priority(0) {
+		RigidCollisionObjectPhysX(CollisionObjectPhysX::TYPE_AREA) {
 }
 
 AreaPhysX::~AreaPhysX() {
@@ -139,8 +128,9 @@ void AreaPhysX::set_param(PhysicsServer3D::AreaParameter p_param, const Variant 
 		case PhysicsServer3D::AREA_PARAM_GRAVITY_POINT_ATTENUATION: {
 			set_spOv_gravity_point_attenuation(p_value);
 		} break;
-		default:
+		default: {
 			WARN_PRINT("Area doesn't support this parameter in the Bullet backend: " + itos(p_param));
+		} break;
 	}
 }
 
@@ -162,9 +152,10 @@ Variant AreaPhysX::get_param(PhysicsServer3D::AreaParameter p_param) const {
 			return spOv_gravity_point_distance_scale;
 		case PhysicsServer3D::AREA_PARAM_GRAVITY_POINT_ATTENUATION:
 			return spOv_gravity_point_attenuation;
-		default:
+		default: {
 			WARN_PRINT("Area doesn't support this parameter in the Bullet backend: " + itos(p_param));
 			return Variant();
+		}
 	}
 }
 

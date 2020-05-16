@@ -45,14 +45,7 @@
 using namespace physx;
 
 CollisionObjectPhysX::CollisionObjectPhysX(Type p_type) :
-		type(p_type),
-		collision_layer(0),
-		collision_mask(0),
-		ray_pickable(false),
-		px_actor(nullptr),
-		body_scale(1.0, 1.0, 1.0),
-		force_shape_reset(false),
-		space(nullptr) {
+		type(p_type) {
 }
 
 CollisionObjectPhysX::~CollisionObjectPhysX() {

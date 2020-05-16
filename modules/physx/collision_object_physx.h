@@ -63,24 +63,18 @@ public:
 	};
 
 	struct ShapeWrapper {
-		ShapePhysX *shape;
+		ShapePhysX *shape = nullptr;
 		ShapeInstancePhysX shape_instance;
-		physx::PxShape *px_shape;
-		bool active;
-		bool attached;
+		physx::PxShape *px_shape = nullptr;
+		bool active = true;
+		bool attached = false;
 
-		ShapeWrapper() :
-				shape(nullptr),
-				px_shape(nullptr),
-				active(true),
-				attached(false) {
+		ShapeWrapper() {
 		}
 
 		ShapeWrapper(ShapePhysX *p_shape, bool p_active) :
 				shape(p_shape),
-				px_shape(nullptr),
-				active(p_active),
-				attached(false) {
+				active(p_active) {
 		}
 
 		ShapeWrapper(const ShapeWrapper &otherShape) {
@@ -99,14 +93,14 @@ public:
 protected:
 	Type type;
 	ObjectID instance_id;
-	uint32_t collision_layer;
-	uint32_t collision_mask;
-	bool ray_pickable;
-	physx::PxRigidActor *px_actor;
-	Vector3 body_scale;
+	uint32_t collision_layer = 0;
+	uint32_t collision_mask = 0;
+	bool ray_pickable = false;
+	physx::PxRigidActor *px_actor = nullptr;
+	Vector3 body_scale = Vector3(1.0, 1.0, 1.0);
 	physx::PxTransform body_transform;
-	bool force_shape_reset;
-	SpacePhysX *space;
+	bool force_shape_reset = false;
+	SpacePhysX *space = nullptr;
 
 	VSet<RID> exceptions;
 
