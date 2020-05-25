@@ -117,6 +117,13 @@ public:
 				ret = jstring_to_string((jstring)o, env);
 				env->DeleteLocalRef(o);
 			} break;
+			case Variant::PACKED_BYTE_ARRAY: {
+				jbyteArray arr = (jbyteArray)env->CallObjectMethodA(instance, E->get().method, v);
+
+				ret = _jobject_to_variant(env, arr);
+
+				env->DeleteLocalRef(arr);
+			} break;
 			case Variant::PACKED_STRING_ARRAY: {
 				jobjectArray arr = (jobjectArray)env->CallObjectMethodA(instance, E->get().method, v);
 
@@ -127,31 +134,31 @@ public:
 			case Variant::PACKED_INT32_ARRAY: {
 				jintArray arr = (jintArray)env->CallObjectMethodA(instance, E->get().method, v);
 
-				int fCount = env->GetArrayLength(arr);
-				Vector<int> sarr;
-				sarr.resize(fCount);
+				ret = _jobject_to_variant(env, arr);
 
-				int *w = sarr.ptrw();
-				env->GetIntArrayRegion(arr, 0, fCount, w);
-				ret = sarr;
+				env->DeleteLocalRef(arr);
+			} break;
+			case Variant::PACKED_INT64_ARRAY: {
+				jlongArray arr = (jlongArray)env->CallObjectMethodA(instance, E->get().method, v);
+
+				ret = _jobject_to_variant(env, arr);
+
 				env->DeleteLocalRef(arr);
 			} break;
 			case Variant::PACKED_FLOAT32_ARRAY: {
 				jfloatArray arr = (jfloatArray)env->CallObjectMethodA(instance, E->get().method, v);
 
-				int fCount = env->GetArrayLength(arr);
-				Vector<float> sarr;
-				sarr.resize(fCount);
+				ret = _jobject_to_variant(env, arr);
 
-				float *w = sarr.ptrw();
-				env->GetFloatArrayRegion(arr, 0, fCount, w);
-				ret = sarr;
 				env->DeleteLocalRef(arr);
 			} break;
+			case Variant::PACKED_FLOAT64_ARRAY: {
+				jdoubleArray arr = (jdoubleArray)env->CallObjectMethodA(instance, E->get().method, v);
 
-#ifndef _MSC_VER
-#warning This is missing 64 bits arrays, I have no idea how to do it in JNI
-#endif
+				ret = _jobject_to_variant(env, arr);
+
+				env->DeleteLocalRef(arr);
+			} break;
 			case Variant::DICTIONARY: {
 				jobject obj = env->CallObjectMethodA(instance, E->get().method, v);
 				ret = _jobject_to_variant(env, obj);

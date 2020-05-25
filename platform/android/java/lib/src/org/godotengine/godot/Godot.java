@@ -66,6 +66,7 @@ import android.os.Messenger;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings.Secure;
+import android.util.Log;
 import android.view.Display;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -204,6 +205,22 @@ public abstract class Godot extends FragmentActivity implements SensorEventListe
 		for (GodotPlugin plugin : pluginRegistry.getAllPlugins()) {
 			plugin.onGodotMainLoopStarted();
 		}
+
+		Log.d("godot", "testEmitSignal begin");
+
+		int[] int_array = { 154, -812 };
+		GodotLib.testEmitSignal("signal_int32_array", new Object[] { int_array });
+
+		long[] long_array = { 8223372060309324622L, 5423372060309324611L };
+		GodotLib.testEmitSignal("signal_int64_array", new Object[] { long_array });
+
+		float[] float_array = { 10.5f, -1.21f };
+		GodotLib.testEmitSignal("signal_float32_array", new Object[] { float_array });
+
+		double[] double_array = { 1e147, -3.5e-72 };
+		GodotLib.testEmitSignal("signal_float64_array", new Object[] { double_array });
+
+		Log.d("godot", "testEmitSignal end");
 	}
 
 	/**

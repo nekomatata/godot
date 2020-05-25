@@ -468,4 +468,83 @@ JNIEXPORT void JNICALL Java_org_godotengine_godot_GodotLib_onRendererPaused(JNIE
 		os_android->get_main_loop()->notification(MainLoop::NOTIFICATION_APP_PAUSED);
 	}
 }
+
+static Object *test_object = nullptr;
+
+class TestObject : public Object {
+	GDCLASS(TestObject, Object);
+
+	void on_signal_int32_array(const PackedInt32Array &p_array) {
+		print_line("signal_int32_array: " + uitos(p_array.size()));
+		for (int i = 0; i < p_array.size(); ++i) {
+			int32_t value = p_array[i];
+			print_line("[" + uitos(i) + "] " + itos(value));
+		}
+	}
+
+	void on_signal_int64_array(const PackedInt64Array &p_array) {
+		print_line("signal_int64_array: " + uitos(p_array.size()));
+		for (int i = 0; i < p_array.size(); ++i) {
+			int64_t value = p_array[i];
+			print_line("[" + uitos(i) + "] " + itos(value));
+		}
+	}
+
+	void on_signal_float32_array(const PackedFloat32Array &p_array) {
+		print_line("signal_float32_array: " + uitos(p_array.size()));
+		for (int i = 0; i < p_array.size(); ++i) {
+			float value = p_array[i];
+			print_line("[" + uitos(i) + "] " + rtos(value));
+		}
+	}
+
+	void on_signal_float64_array(const PackedFloat64Array &p_array) {
+		print_line("signal_float64_array: " + uitos(p_array.size()));
+		for (int i = 0; i < p_array.size(); ++i) {
+			double value = p_array[i];
+			print_line("[" + uitos(i) + "] " + rtos(value));
+		}
+	}
+
+	static void _bind_methods() {
+		ADD_SIGNAL(MethodInfo("signal_int32_array", PropertyInfo(Variant::PACKED_INT32_ARRAY, "array")));
+		ADD_SIGNAL(MethodInfo("signal_int64_array", PropertyInfo(Variant::PACKED_INT64_ARRAY, "array")));
+		ADD_SIGNAL(MethodInfo("signal_float32_array", PropertyInfo(Variant::PACKED_FLOAT32_ARRAY, "array")));
+		ADD_SIGNAL(MethodInfo("signal_float64_array", PropertyInfo(Variant::PACKED_FLOAT64_ARRAY, "array")));
+	}
+
+public:
+	TestObject() {
+		connect("signal_int32_array", callable_mp(this, &TestObject::on_signal_int32_array));
+		connect("signal_int64_array", callable_mp(this, &TestObject::on_signal_int64_array));
+		connect("signal_float32_array", callable_mp(this, &TestObject::on_signal_float32_array));
+		connect("signal_float64_array", callable_mp(this, &TestObject::on_signal_float64_array));
+	}
+};
+
+JNIEXPORT void JNICALL Java_org_godotengine_godot_GodotLib_testEmitSignal(JNIEnv *env, jclass clazz, jstring j_signal_name, jobjectArray j_signal_params) {
+	if (nullptr == test_object) {
+		ClassDB::register_class<TestObject>();
+		test_object = memnew(TestObject);
+	}
+
+	String signal_name = jstring_to_string(j_signal_name, env);
+
+	int count = env->GetArrayLength(j_signal_params);
+	Variant args[VARIANT_ARG_MAX];
+
+	ERR_FAIL_COND_MSG(count > VARIANT_ARG_MAX, "Maximum argument count exceeded!");
+
+	for (int i = 0; i < count; i++) {
+		jobject j_param = env->GetObjectArrayElement(j_signal_params, i);
+		if (j_param) {
+			args[i] = _jobject_to_variant(env, j_param);
+			print_line("variant: type=" + uitos(args[i].get_type()) + ", str=" + String(args[i]));
+		}
+		env->DeleteLocalRef(j_param);
+	};
+
+	static_assert(VARIANT_ARG_MAX == 5);
+	test_object->emit_signal(signal_name, args[0], args[1], args[2], args[3], args[4]);
+}
 }

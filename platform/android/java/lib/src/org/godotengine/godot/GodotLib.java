@@ -224,4 +224,6 @@ public class GodotLib {
 	 * @see GodotRenderer#onActivityPaused()
 	 */
 	public static native void onRendererPaused();
+
+	public static native void testEmitSignal(String signalName, Object[] signalParams);
 }

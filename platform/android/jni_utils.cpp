@@ -85,7 +85,7 @@ jvalret _variant_to_jvalue(JNIEnv *env, Variant::Type p_type, const Variant *p_a
 			v.obj = jStr;
 		} break;
 		case Variant::PACKED_STRING_ARRAY: {
-			Vector<String> sarray = *p_arg;
+			PackedStringArray sarray = *p_arg;
 			jobjectArray arr = env->NewObjectArray(sarray.size(), env->FindClass("java/lang/String"), env->NewStringUTF(""));
 
 			for (int j = 0; j < sarray.size(); j++) {
@@ -141,7 +141,7 @@ jvalret _variant_to_jvalue(JNIEnv *env, Variant::Type p_type, const Variant *p_a
 		} break;
 
 		case Variant::PACKED_INT32_ARRAY: {
-			Vector<int> array = *p_arg;
+			PackedInt32Array array = *p_arg;
 			jintArray arr = env->NewIntArray(array.size());
 			const int *r = array.ptr();
 			env->SetIntArrayRegion(arr, 0, array.size(), r);
@@ -149,8 +149,19 @@ jvalret _variant_to_jvalue(JNIEnv *env, Variant::Type p_type, const Variant *p_a
 			v.obj = arr;
 
 		} break;
+
+		case Variant::PACKED_INT64_ARRAY: {
+			PackedInt64Array array = *p_arg;
+			jlongArray arr = env->NewLongArray(array.size());
+			const int64_t *r = array.ptr();
+			env->SetLongArrayRegion(arr, 0, array.size(), r);
+			v.val.l = arr;
+			v.obj = arr;
+
+		} break;
+
 		case Variant::PACKED_BYTE_ARRAY: {
-			Vector<uint8_t> array = *p_arg;
+			PackedByteArray array = *p_arg;
 			jbyteArray arr = env->NewByteArray(array.size());
 			const uint8_t *r = array.ptr();
 			env->SetByteArrayRegion(arr, 0, array.size(), reinterpret_cast<const signed char *>(r));
@@ -158,8 +169,9 @@ jvalret _variant_to_jvalue(JNIEnv *env, Variant::Type p_type, const Variant *p_a
 			v.obj = arr;
 
 		} break;
+
 		case Variant::PACKED_FLOAT32_ARRAY: {
-			Vector<float> array = *p_arg;
+			PackedFloat32Array array = *p_arg;
 			jfloatArray arr = env->NewFloatArray(array.size());
 			const float *r = array.ptr();
 			env->SetFloatArrayRegion(arr, 0, array.size(), r);
@@ -167,9 +179,16 @@ jvalret _variant_to_jvalue(JNIEnv *env, Variant::Type p_type, const Variant *p_a
 			v.obj = arr;
 
 		} break;
-#ifndef _MSC_VER
-#warning This is missing 64 bits arrays, I have no idea how to do it in JNI
-#endif
+
+		case Variant::PACKED_FLOAT64_ARRAY: {
+			PackedFloat64Array array = *p_arg;
+			jdoubleArray arr = env->NewDoubleArray(array.size());
+			const double *r = array.ptr();
+			env->SetDoubleArrayRegion(arr, 0, array.size(), r);
+			v.val.l = arr;
+			v.obj = arr;
+
+		} break;
 
 		default: {
 			v.val.i = 0;
@@ -202,6 +221,8 @@ Variant _jobject_to_variant(JNIEnv *env, jobject obj) {
 	jclass c = env->GetObjectClass(obj);
 	bool array;
 	String name = _get_class_name(env, c, &array);
+
+	print_line("_jobject_to_variant: name=" + name);
 
 	if (name == "java.lang.String") {
 		return jstring_to_string((jstring)obj, env);
@@ -237,11 +258,34 @@ Variant _jobject_to_variant(JNIEnv *env, jobject obj) {
 	if (name == "[I") {
 		jintArray arr = (jintArray)obj;
 		int fCount = env->GetArrayLength(arr);
+		print_line("length=" + itos(fCount));
 		Vector<int> sarr;
 		sarr.resize(fCount);
 
 		int *w = sarr.ptrw();
 		env->GetIntArrayRegion(arr, 0, fCount, w);
+
+		for (int i = 0; i < fCount; ++i) {
+			print_line(itos(i) + "=" + itos(sarr[i]));
+		}
+
+		return sarr;
+	};
+
+	if (name == "[J") {
+		jlongArray arr = (jlongArray)obj;
+		int fCount = env->GetArrayLength(arr);
+		print_line("length=" + itos(fCount));
+		Vector<int64_t> sarr;
+		sarr.resize(fCount);
+
+		int64_t *w = sarr.ptrw();
+		env->GetLongArrayRegion(arr, 0, fCount, w);
+
+		for (int i = 0; i < fCount; ++i) {
+			print_line(itos(i) + "=" + itos(sarr[i]));
+		}
+
 		return sarr;
 	};
 
@@ -266,7 +310,8 @@ Variant _jobject_to_variant(JNIEnv *env, jobject obj) {
 	if (name == "[D") {
 		jdoubleArray arr = (jdoubleArray)obj;
 		int fCount = env->GetArrayLength(arr);
-		PackedFloat32Array sarr;
+		print_line("length=" + itos(fCount));
+		PackedFloat64Array sarr;
 		sarr.resize(fCount);
 
 		real_t *w = sarr.ptrw();
@@ -276,12 +321,18 @@ Variant _jobject_to_variant(JNIEnv *env, jobject obj) {
 			env->GetDoubleArrayRegion(arr, i, 1, &n);
 			w[i] = n;
 		};
+
+		for (int i = 0; i < fCount; ++i) {
+			print_line(itos(i) + "=" + rtos(sarr[i]));
+		}
+
 		return sarr;
 	};
 
 	if (name == "[F") {
 		jfloatArray arr = (jfloatArray)obj;
 		int fCount = env->GetArrayLength(arr);
+		print_line("length=" + itos(fCount));
 		PackedFloat32Array sarr;
 		sarr.resize(fCount);
 
@@ -292,6 +343,11 @@ Variant _jobject_to_variant(JNIEnv *env, jobject obj) {
 			env->GetFloatArrayRegion(arr, i, 1, &n);
 			w[i] = n;
 		};
+
+		for (int i = 0; i < fCount; ++i) {
+			print_line(itos(i) + "=" + rtos(sarr[i]));
+		}
+
 		return sarr;
 	};
 
@@ -349,8 +405,10 @@ Variant::Type get_jni_type(const String &p_type) {
 		{ "double", Variant::FLOAT },
 		{ "java.lang.String", Variant::STRING },
 		{ "[I", Variant::PACKED_INT32_ARRAY },
+		{ "[J", Variant::PACKED_INT64_ARRAY },
 		{ "[B", Variant::PACKED_BYTE_ARRAY },
 		{ "[F", Variant::PACKED_FLOAT32_ARRAY },
+		{ "[D", Variant::PACKED_FLOAT64_ARRAY },
 		{ "[Ljava.lang.String;", Variant::PACKED_STRING_ARRAY },
 		{ "org.godotengine.godot.Dictionary", Variant::DICTIONARY },
 		{ nullptr, Variant::NIL }
