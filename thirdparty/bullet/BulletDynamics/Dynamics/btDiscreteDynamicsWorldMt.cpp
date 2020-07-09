@@ -232,7 +232,7 @@ void btDiscreteDynamicsWorldMt::createPredictiveContacts(btScalar timeStep)
 		update.world = this;
 		update.timeStep = timeStep;
 		update.rigidBodies = &m_nonStaticRigidBodies[0];
-		int grainSize = 50;  // num of iterations per task for task scheduler
+		int grainSize = 10;  // num of iterations per task for task scheduler
 		btParallelFor(0, m_nonStaticRigidBodies.size(), grainSize, update);
 	}
 }

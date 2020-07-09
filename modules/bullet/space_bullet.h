@@ -39,7 +39,10 @@
 
 #include <BulletCollision/BroadphaseCollision/btBroadphaseProxy.h>
 #include <BulletCollision/BroadphaseCollision/btOverlappingPairCache.h>
+#include <BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolverMt.h>
+#include <BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h>
 #include <LinearMath/btScalar.h>
+#include <LinearMath/btThreads.h>
 #include <LinearMath/btTransform.h>
 #include <LinearMath/btVector3.h>
 
@@ -53,7 +56,7 @@ class btCollisionDispatcher;
 class btConstraintSolver;
 class btDefaultCollisionConfiguration;
 class btDynamicsWorld;
-class btDiscreteDynamicsWorld;
+class btDiscreteDynamicsWorldMt;
 class btEmptyShape;
 class btGhostPairCallback;
 class btSoftRigidDynamicsWorld;
@@ -96,6 +99,8 @@ class SpaceBullet : public RIDBullet {
 	btDefaultCollisionConfiguration *collisionConfiguration;
 	btCollisionDispatcher *dispatcher;
 	btConstraintSolver *solver;
+	btSequentialImpulseConstraintSolverMt *solver_mutithread;
+	btConstraintSolverPoolMt *solver_pool;
 	btDiscreteDynamicsWorld *dynamicsWorld;
 	btSoftBodyWorldInfo *soft_body_world_info;
 	btGhostPairCallback *ghostPairCallback;

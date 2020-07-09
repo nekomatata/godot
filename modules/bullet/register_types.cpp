@@ -40,6 +40,8 @@
 
 #ifndef _3D_DISABLED
 PhysicsServer *_createBulletPhysicsCallback() {
+	btITaskScheduler *godot_bullet_task_scheduler = btCreateDefaultTaskScheduler();
+	btSetTaskScheduler(godot_bullet_task_scheduler);
 	return memnew(BulletPhysicsServer);
 }
 #endif

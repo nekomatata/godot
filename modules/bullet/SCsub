@@ -204,6 +204,7 @@ if env["builtin_bullet"]:
     #     env_bullet.Append(CPPDEFINES=['BT_DEBUG'])
 
     env_bullet.Append(CPPDEFINES=["BT_USE_OLD_DAMPING_METHOD"])
+    env_bullet.Append(CPPDEFINES=["BT_THREADSAFE"])
 
     env_thirdparty = env_bullet.Clone()
     env_thirdparty.disable_warnings()
