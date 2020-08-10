@@ -497,6 +497,36 @@ PoolVector<Color> CPUParticles2D::get_emission_colors() const {
 CPUParticles2D::EmissionShape CPUParticles2D::get_emission_shape() const {
 	return emission_shape;
 }
+
+void CPUParticles2D::set_trail_divisor(int p_divisor) {
+	ERR_FAIL_COND(p_divisor < 1);
+	trail_divisor = p_divisor;
+}
+
+int CPUParticles2D::get_trail_divisor() const {
+	return trail_divisor;
+}
+
+void CPUParticles2D::set_trail_size_modifier(const Ref<Curve> &p_trail_size_modifier) {
+	trail_size_modifier = p_trail_size_modifier;
+
+	if (trail_size_modifier.is_valid()) {
+		trail_size_modifier->ensure_default_setup(0.0, 1.0);
+	}
+}
+
+Ref<Curve> CPUParticles2D::get_trail_size_modifier() const {
+	return trail_size_modifier;
+}
+
+void CPUParticles2D::set_trail_color_modifier(const Ref<Gradient> &p_trail_color_modifier) {
+	trail_color_modifier = p_trail_color_modifier;
+}
+
+Ref<Gradient> CPUParticles2D::get_trail_color_modifier() const {
+	return trail_color_modifier;
+}
+
 void CPUParticles2D::set_gravity(const Vector2 &p_gravity) {
 
 	gravity = p_gravity;
@@ -738,7 +768,7 @@ void CPUParticles2D::_particles_process(float p_delta) {
 				tex_anim_offset = curve_parameters[PARAM_ANGLE]->interpolate(0);
 			}
 
-			p.seed = Math::rand();
+			p.seed = idhash(seed) Math::rand();
 
 			p.angle_rand = Math::randf();
 			p.scale_rand = Math::randf();
@@ -752,7 +782,8 @@ void CPUParticles2D::_particles_process(float p_delta) {
 			float base_angle = (parameters[PARAM_ANGLE] + tex_angle) * Math::lerp(1.0f, p.angle_rand, randomness[PARAM_ANGLE]);
 			p.rotation = Math::deg2rad(base_angle);
 
-			p.custom[0] = 0.0; // unused
+			static uint32_t unique_id = 0;
+			p.custom[0] = unique_id++; // unique number since emission start
 			p.custom[1] = 0.0; // phase [0..1]
 			p.custom[2] = (parameters[PARAM_ANIM_OFFSET] + tex_anim_offset) * Math::lerp(1.0f, p.anim_offset_rand, randomness[PARAM_ANIM_OFFSET]); //animation phase [0..1]
 			p.custom[3] = 0.0;
@@ -760,6 +791,11 @@ void CPUParticles2D::_particles_process(float p_delta) {
 			p.time = 0;
 			p.lifetime = lifetime * (1.0 - Math::randf() * lifetime_randomness);
 			p.base_color = Color(1, 1, 1, 1);
+
+			if ((trail_divisor > 1) && trail_color_modifier.is_valid()) {
+				float trail_index = float(int(p.custom[0]) % trail_divisor) / float(trail_divisor - 1);
+				p.base_color *= trail_color_modifier->get_color_at_offset(trail_index);
+			}
 
 			switch (emission_shape) {
 				case EMISSION_SHAPE_POINT: {
@@ -963,6 +999,11 @@ void CPUParticles2D::_particles_process(float p_delta) {
 		//scale by scale
 		float base_scale = tex_scale * Math::lerp(parameters[PARAM_SCALE], 1.0f, p.scale_rand * randomness[PARAM_SCALE]);
 		if (base_scale < 0.000001) base_scale = 0.000001;
+
+		if ((trail_divisor > 1) && trail_size_modifier.is_valid()) {
+			float trail_index = float(int(p.custom[0]) % trail_divisor) / float(trail_divisor - 1);
+			base_scale *= trail_size_modifier->interpolate(trail_index);
+		}
 
 		p.transform.elements[0] *= base_scale;
 		p.transform.elements[1] *= base_scale;
@@ -1204,6 +1245,16 @@ void CPUParticles2D::convert_from_particles(Node *p_particles) {
 	Vector2 rect_extents = Vector2(material->get_emission_box_extents().x, material->get_emission_box_extents().y);
 	set_emission_rect_extents(rect_extents);
 
+	set_trail_divisor(material->get_trail_divisor());
+	Ref<CurveTexture> trail_size_modifier = material->get_trail_size_modifier();
+	if (trail_size_modifier.is_valid()) {
+		set_trail_size_modifier(trail_size_modifier->get_curve());
+	}
+	Ref<GradientTexture> trail_color_modifier = material->get_trail_color_modifier();
+	if (trail_color_modifier.is_valid()) {
+		set_trail_color_modifier(trail_color_modifier->get_gradient());
+	}
+
 	Vector2 gravity = Vector2(material->get_gravity().x, material->get_gravity().y);
 	set_gravity(gravity);
 	set_lifetime_randomness(material->get_lifetime_randomness());
@@ -1338,6 +1389,15 @@ void CPUParticles2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_emission_colors", "array"), &CPUParticles2D::set_emission_colors);
 	ClassDB::bind_method(D_METHOD("get_emission_colors"), &CPUParticles2D::get_emission_colors);
 
+	ClassDB::bind_method(D_METHOD("set_trail_divisor", "divisor"), &CPUParticles2D::set_trail_divisor);
+	ClassDB::bind_method(D_METHOD("get_trail_divisor"), &CPUParticles2D::get_trail_divisor);
+
+	ClassDB::bind_method(D_METHOD("set_trail_size_modifier", "curve"), &CPUParticles2D::set_trail_size_modifier);
+	ClassDB::bind_method(D_METHOD("get_trail_size_modifier"), &CPUParticles2D::get_trail_size_modifier);
+
+	ClassDB::bind_method(D_METHOD("set_trail_color_modifier", "gradient"), &CPUParticles2D::set_trail_color_modifier);
+	ClassDB::bind_method(D_METHOD("get_trail_color_modifier"), &CPUParticles2D::get_trail_color_modifier);
+
 	ClassDB::bind_method(D_METHOD("get_gravity"), &CPUParticles2D::get_gravity);
 	ClassDB::bind_method(D_METHOD("set_gravity", "accel_vec"), &CPUParticles2D::set_gravity);
 
@@ -1346,6 +1406,10 @@ void CPUParticles2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_update_render_thread"), &CPUParticles2D::_update_render_thread);
 	ClassDB::bind_method(D_METHOD("_texture_changed"), &CPUParticles2D::_texture_changed);
 
+	ADD_GROUP("Trail", "trail_");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "trail_divisor", PROPERTY_HINT_RANGE, "1,1000000,1"), "set_trail_divisor", "get_trail_divisor");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "trail_size_modifier", PROPERTY_HINT_RESOURCE_TYPE, "Curve"), "set_trail_size_modifier", "get_trail_size_modifier");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "trail_color_modifier", PROPERTY_HINT_RESOURCE_TYPE, "Gradient"), "set_trail_color_modifier", "get_trail_color_modifier");
 	ADD_GROUP("Emission Shape", "emission_");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "emission_shape", PROPERTY_HINT_ENUM, "Point,Sphere,Box,Points,Directed Points"), "set_emission_shape", "get_emission_shape");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "emission_sphere_radius", PROPERTY_HINT_RANGE, "0.01,128,0.01"), "set_emission_sphere_radius", "get_emission_sphere_radius");
@@ -1483,6 +1547,7 @@ CPUParticles2D::CPUParticles2D() {
 	set_emission_shape(EMISSION_SHAPE_POINT);
 	set_emission_sphere_radius(1);
 	set_emission_rect_extents(Vector2(1, 1));
+	set_trail_divisor(1);
 
 	set_gravity(Vector2(0, 98));
 

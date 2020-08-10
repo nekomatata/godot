@@ -174,6 +174,10 @@ private:
 	PoolVector<Color> emission_colors;
 	int emission_point_count;
 
+	int trail_divisor;
+	Ref<Curve> trail_size_modifier;
+	Ref<Gradient> trail_color_modifier;
+
 	Vector2 gravity;
 
 	void _update_internal();
@@ -279,6 +283,15 @@ public:
 	PoolVector<Vector2> get_emission_normals() const;
 	PoolVector<Color> get_emission_colors() const;
 	int get_emission_point_count() const;
+
+	void set_trail_divisor(int p_divisor);
+	int get_trail_divisor() const;
+
+	void set_trail_size_modifier(const Ref<Curve> &p_trail_size_modifier);
+	Ref<Curve> get_trail_size_modifier() const;
+
+	void set_trail_color_modifier(const Ref<Gradient> &p_trail_color_modifier);
+	Ref<Gradient> get_trail_color_modifier() const;
 
 	void set_gravity(const Vector2 &p_gravity);
 	Vector2 get_gravity() const;
