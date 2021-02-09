@@ -46,8 +46,28 @@ bool CollisionSolverSW::solve_static_plane(const ShapeSW *p_shape_A, const Trans
 	static const int max_supports = 16;
 	Vector3 supports[max_supports];
 	int support_count;
+	ShapeSW::FeatureType support_type;
 
-	p_shape_B->get_supports(p_transform_B.basis.xform_inv(-p.normal).normalized(), max_supports, supports, support_count);
+	p_shape_B->get_supports(p_transform_B.basis.xform_inv(-p.normal).normalized(), max_supports, supports, support_count, support_type);
+
+	// TODO: Proper circle support instead of generating vertices.
+	if (support_type == ShapeSW::FEATURE_CIRCLE) {
+		ERR_FAIL_COND_V(support_count != 3, false);
+
+		const Vector3 &circle_pos = supports[0];
+		Vector3 circle_axis_1 = supports[1] - circle_pos;
+		Vector3 circle_axis_2 = supports[2] - circle_pos;
+
+		int num_vertices = max_supports - 1;
+		real_t angle_step = (2.0 * Math_PI) / num_vertices;
+		real_t angle = 0.0;
+		for (int i = 0; i < num_vertices; ++i) {
+			Vector3 vertex_pos = circle_pos + circle_axis_1 * Math::cos(angle) + circle_axis_2 * Math::sin(angle);
+			supports[i + 1] = vertex_pos;
+			angle += angle_step;
+		}
+		support_count = max_supports;
+	}
 
 	bool found = false;
 
@@ -267,8 +287,9 @@ bool CollisionSolverSW::solve_distance_plane(const ShapeSW *p_shape_A, const Tra
 	static const int max_supports = 16;
 	Vector3 supports[max_supports];
 	int support_count;
+	ShapeSW::FeatureType support_type;
 
-	p_shape_B->get_supports(p_transform_B.basis.xform_inv(-p.normal).normalized(), max_supports, supports, support_count);
+	p_shape_B->get_supports(p_transform_B.basis.xform_inv(-p.normal).normalized(), max_supports, supports, support_count, support_type);
 
 	bool collided = false;
 	Vector3 closest;

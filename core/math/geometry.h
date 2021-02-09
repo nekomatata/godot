@@ -490,6 +490,19 @@ public:
 			return p_segment[0] + n * d; // Inside.
 	}
 
+	static Vector2 get_closest_point_to_line_2d(const Vector2 &p_point, const Vector2 *p_segment) {
+		Vector2 p = p_point - p_segment[0];
+		Vector2 n = p_segment[1] - p_segment[0];
+		real_t l2 = n.length_squared();
+		if (l2 < 1e-20) {
+			return p_segment[0]; // Both points are the same, just give any.
+		}
+
+		real_t d = n.dot(p) / l2;
+
+		return p_segment[0] + n * d;
+	}
+
 	static bool is_point_in_triangle(const Vector2 &s, const Vector2 &a, const Vector2 &b, const Vector2 &c) {
 		Vector2 an = a - s;
 		Vector2 bn = b - s;
@@ -715,6 +728,82 @@ public:
 		if (res1 >= 0 && res1 <= 1) return res1;
 		if (res2 >= 0 && res2 <= 1) return res2;
 		return -1;
+	}
+
+	static bool line_intersects_circle(const Vector2 &p_from, const Vector2 &p_to, const Vector2 &p_circle_pos, real_t p_circle_radius, float &r_res_1, float &r_res_2) {
+		Vector2 line_vec = p_to - p_from;
+		Vector2 vec_to_line = p_from - p_circle_pos;
+
+		// Create a quadratic formula of the form ax^2 + bx + c = 0
+		real_t a, b, c;
+
+		a = line_vec.dot(line_vec);
+		b = 2 * vec_to_line.dot(line_vec);
+		c = vec_to_line.dot(vec_to_line) - p_circle_radius * p_circle_radius;
+
+		// Solve for t.
+		real_t sqrtterm = b * b - 4 * a * c;
+
+		// If the term we intend to square root is less than 0 then the answer won't be real,
+		// so the line doesn't intersect.
+		if (sqrtterm < 0) {
+			return false;
+		}
+
+		sqrtterm = Math::sqrt(sqrtterm);
+		r_res_1 = (-b - sqrtterm) / (2 * a);
+		r_res_2 = (-b + sqrtterm) / (2 * a);
+
+		return true;
+	}
+
+	static bool get_closest_point_to_circle_3d(const Vector3 &point, const Vector3 &p_circle_pos, const Vector3 &p_circle_normal, real_t p_circle_radius, Vector3 &r_res) {
+		// See https://www.geometrictools.com/Documentation/DistanceToCircle3.pdf#section.2
+
+		Vector3 diff = point - p_circle_pos;
+		Vector3 proj = diff - p_circle_normal.dot(diff) * p_circle_normal;
+
+		real_t proj_len = proj.length();
+		if (Math::is_zero_approx(proj_len)) {
+			// Point is equidistant to all circle points.
+			return false;
+		} else {
+			r_res = p_circle_pos + (p_circle_radius / proj_len) * proj;
+			return true;
+		}
+	}
+
+	static void get_closest_points_between_line_circle_3d(const Vector3 &p_from, const Vector3 &p_to, const Vector3 &p_circle_pos, const Vector3 &p_circle_axis, const Vector3 &p_circle_normal, real_t p_circle_radius, Vector3 &r_closest_line_a, Vector3 &r_closest_circle_a, Vector3 &r_closest_line_b, Vector3 &r_closest_circle_b, int &r_num_pairs) {
+		// See https://www.geometrictools.com/Documentation/DistanceToCircle3.pdf#section.4.1
+
+		Vector3 line_dir = (p_to - p_from).normalized();
+
+		Vector3 diff_from = p_from - p_circle_pos;
+		Vector3 n_cross_line = p_circle_normal.cross(line_dir);
+		Vector3 n_cross_diff = p_circle_normal.cross(diff_from);
+
+		if (n_cross_line.is_equal_approx(Vector3())) {
+			// Line is perpendicular to the circle plane.
+
+			if (n_cross_diff.is_equal_approx(Vector3())) {
+				// Line is equidistant to the circle, return a point on the given axis.
+				r_closest_line_a = p_circle_pos;
+				r_closest_circle_a = p_circle_pos + p_circle_radius * p_circle_axis;
+				r_num_pairs = 1;
+				return;
+			}
+
+			Vector3 delta = diff_from - line_dir.dot(diff_from) * line_dir;
+			r_closest_line_a = p_circle_pos + delta;
+			delta -= p_circle_normal.dot(delta) * p_circle_normal;
+			delta.normalize();
+			r_closest_circle_a = p_circle_pos + p_circle_radius * delta;
+			r_num_pairs = 1;
+			return;
+		}
+
+		if (n_cross_diff.is_equal_approx(Vector3())) {
+		}
 	}
 
 	static inline Vector<Vector3> clip_polygon(const Vector<Vector3> &polygon, const Plane &p_plane) {
