@@ -59,6 +59,10 @@ void Body3DSW::update_inertias() {
 			real_t total_area = 0;
 
 			for (int i = 0; i < get_shape_count(); i++) {
+				if (is_shape_disabled(i)) {
+					continue;
+				}
+
 				total_area += get_shape_area(i);
 			}
 
@@ -66,6 +70,10 @@ void Body3DSW::update_inertias() {
 			center_of_mass_local.zero();
 
 			for (int i = 0; i < get_shape_count(); i++) {
+				if (is_shape_disabled(i)) {
+					continue;
+				}
+
 				real_t area = get_shape_area(i);
 
 				real_t mass = area * this->mass / total_area;
@@ -79,6 +87,8 @@ void Body3DSW::update_inertias() {
 			// Recompute the inertia tensor
 			Basis inertia_tensor;
 			inertia_tensor.set_zero();
+
+			bool valid_inertia = false;
 
 			for (int i = 0; i < get_shape_count(); i++) {
 				if (is_shape_disabled(i)) {
@@ -100,6 +110,13 @@ void Body3DSW::update_inertias() {
 
 				Vector3 shape_origin = shape_transform.origin - center_of_mass_local;
 				inertia_tensor += shape_inertia_tensor + (Basis() * shape_origin.dot(shape_origin) - shape_origin.outer(shape_origin)) * mass;
+
+				valid_inertia = true;
+			}
+
+			if (!valid_inertia) {
+				// Set default inertia when there's no valid shape.
+				inertia_tensor.set_diagonal(Vector3(1.0, 1.0, 1.0));
 			}
 
 			// Compute the principal axes of inertia
