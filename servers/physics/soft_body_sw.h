@@ -1,5 +1,5 @@
 /*************************************************************************/
-/*  soft_body_bullet.h                                                   */
+/*  soft_body_sw.h                                                       */
 /*************************************************************************/
 /*                       This file is part of:                           */
 /*                           GODOT ENGINE                                */
@@ -28,99 +28,100 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#ifndef SOFT_BODY_BULLET_H
-#define SOFT_BODY_BULLET_H
+#ifndef SOFT_BODY_SW_H
+#define SOFT_BODY_SW_H
 
-#include "collision_object_bullet.h"
-#include "scene/resources/material.h" // TODO remove this please
+#include "collision_object_sw.h"
 
-#ifdef None
-/// This is required to remove the macro None defined by x11 compiler because this word "None" is used internally by Bullet
-#undef None
-#define x11_None 0L
-#endif
-
-#include "BulletSoftBody/btSoftBodyHelpers.h"
-#include "collision_object_bullet.h"
+#include "core/local_vector.h"
+#include "core/math/aabb.h"
+#include "core/math/vector3.h"
 #include "scene/resources/mesh.h"
-#include "servers/physics_server.h"
 
-#ifdef x11_None
-/// This is required to re add the macro None defined by x11 compiler
-#undef x11_None
-#define None 0L
-#endif
-
-/**
-	@author AndreaCatania
-*/
-
-class VisualServerHandler;
-
-class SoftBodyBullet : public CollisionObjectBullet {
-
-private:
-	btSoftBody *bt_soft_body;
-	Vector<Vector<int> > indices_table;
-	btSoftBody::Material *mat0; // This is just a copy of pointer managed by btSoftBody
-	bool isScratched;
-
+class SoftBodySW : public CollisionObjectSW {
 	Ref<Mesh> soft_mesh;
 
-	int simulation_precision;
-	real_t total_mass;
-	real_t linear_stiffness; // [0,1]
-	real_t angular_stiffness; // [0,1]
-	real_t volume_stiffness; // [0,1]
-	real_t pressure_coefficient; // [-inf,+inf]
-	real_t pose_matching_coefficient; // [0,1]
-	real_t damping_coefficient; // [0,1]
-	real_t drag_coefficient; // [0,1]
-	Vector<int> pinned_nodes;
+	struct Node {
+		Vector3 s; // Source position
+		Vector3 x; // Position
+		Vector3 q; // Previous step position/Test position
+		Vector3 v; // Velocity
+		Vector3 vsplit; // Temporary Velocity in addintion to velocity used in split impulse
+		Vector3 vn; // Previous step velocity
+		Vector3 f; // Force accumulator
+		Vector3 n; // Normal
+		real_t im = 0.0; // 1/mass
+		real_t area = 0.0; // Area
+		//btDbvtNode *leaf; // Leaf data
+		//int battach : 1; // Attached
+		int index = 0;
+	};
 
-	// Other property to add
-	//btScalar				kVC;			// Volume conversation coefficient [0,+inf]
-	//btScalar				kDF;			// Dynamic friction coefficient [0,1]
-	//btScalar				kMT;			// Pose matching coefficient [0,1]
-	//btScalar				kCHR;			// Rigid contacts hardness [0,1]
-	//btScalar				kKHR;			// Kinetic contacts hardness [0,1]
-	//btScalar				kSHR;			// Soft contacts hardness [0,1]
+	struct Link {
+		Vector3 c3; // gradient
+		Node *n[2] = { nullptr, nullptr }; // Node pointers
+		real_t rl = 0.0; // Rest length
+		//int bending : 1; // Bending link
+		real_t c0 = 0.0; // (ima+imb)*kLST
+		real_t c1 = 0.0; // rl^2
+		real_t c2 = 0.0; // |gradient|^2/c0
+	};
+
+	struct Face {
+		Node *n[3] = { nullptr, nullptr, nullptr }; // Node pointers
+		Vector3 normal; // Normal
+		real_t ra; // Rest area
+		//btDbvtNode *leaf; // Leaf data
+		real_t pcontact[4] = { 0, 0, 0, 0 }; // barycentric weights of the persistent contact
+		int index = 0;
+	};
+
+	LocalVector<Node> nodes;
+	LocalVector<Link> links;
+	LocalVector<Face> faces;
+	LocalVector<uint32_t> map_visual_to_physics;
+	LocalVector<LocalVector<int> > indices_table;
+
+	AABB bounds;
+
+	int iteration_count = 5;
+	real_t total_mass = 1.0;
+	real_t linear_stiffness = 0.5; // [0,1]
+	real_t angular_stiffness = 0.5; // [0,1]
+	real_t volume_stiffness = 0.5; // [0,1]
+	real_t pressure_coefficient = 0.0; // [-inf,+inf]
+	real_t pose_matching_coefficient = 0.0; // [0,1]
+	real_t damping_coefficient = 0.01; // [0,1]
+	real_t drag_coefficient = 0.0; // [0,1]
+	LocalVector<int> pinned_vertices;
+
+	SelfList<SoftBodySW> active_list;
+
+protected:
+	virtual void _shapes_changed();
 
 public:
-	SoftBodyBullet();
-	~SoftBodyBullet();
+	SoftBodySW();
 
-	virtual void reload_body();
-	virtual void set_space(SpaceBullet *p_space);
+	void set_state(PhysicsServer::BodyState p_state, const Variant &p_variant);
+	Variant get_state(PhysicsServer::BodyState p_state) const;
 
-	virtual void dispatch_callbacks() {}
-	virtual void on_collision_filters_change() {}
-	virtual void on_collision_checker_start() {}
-	virtual void on_collision_checker_end() {}
-	virtual void on_enter_area(AreaBullet *p_area);
-	virtual void on_exit_area(AreaBullet *p_area);
+	virtual void set_space(SpaceSW *p_space);
 
-	_FORCE_INLINE_ btSoftBody *get_bt_soft_body() const { return bt_soft_body; }
+	void set_mesh(const Ref<Mesh> &p_mesh);
 
 	void update_visual_server(VisualServerHandler *p_visual_server_handler);
 
-	void set_soft_mesh(const Ref<Mesh> &p_mesh);
-	void destroy_soft_body();
+	Vector3 get_vertex_position(int p_index) const;
+	void set_vertex_position(int p_index, const Vector3 &p_position);
 
-	// Special function. This function has bad performance
-	void set_soft_transform(const Transform &p_transform);
+	void pin_vertex(int p_index);
+	void unpin_vertex(int p_index);
+	void unpin_all_vertices();
+	bool is_vertex_pinned(int p_index) const;
 
-	void move_all_nodes(const Transform &p_transform);
-	void set_node_position(int node_index, const Vector3 &p_global_position);
-	void set_node_position(int node_index, const btVector3 &p_global_position);
-	void get_node_position(int node_index, Vector3 &r_position) const;
-
-	void set_node_mass(int node_index, btScalar p_mass);
-	btScalar get_node_mass(int node_index) const;
-	void reset_all_node_mass();
-	void reset_all_node_positions();
-
-	void set_activation_state(bool p_active);
+	void set_iteration_count(int p_val);
+	_FORCE_INLINE_ real_t get_iteration_count() const { return iteration_count; }
 
 	void set_total_mass(real_t p_val);
 	_FORCE_INLINE_ real_t get_total_mass() const { return total_mass; }
@@ -134,9 +135,6 @@ public:
 	void set_volume_stiffness(real_t p_val);
 	_FORCE_INLINE_ real_t get_volume_stiffness() const { return volume_stiffness; }
 
-	void set_simulation_precision(int p_val);
-	_FORCE_INLINE_ int get_simulation_precision() const { return simulation_precision; }
-
 	void set_pressure_coefficient(real_t p_val);
 	_FORCE_INLINE_ real_t get_pressure_coefficient() const { return pressure_coefficient; }
 
@@ -149,13 +147,28 @@ public:
 	void set_drag_coefficient(real_t p_val);
 	_FORCE_INLINE_ real_t get_drag_coefficient() const { return drag_coefficient; }
 
-private:
-	void set_trimesh_body_shape(PoolVector<int> p_indices, PoolVector<Vector3> p_vertices);
-	void setup_soft_body();
+	void predict_motion(real_t p_delta);
+	void solve_constraints(real_t p_delta);
 
-	void pin_node(int p_node_index);
-	void unpin_node(int p_node_index);
-	int search_node_pinned(int p_node_index) const;
+private:
+	void update_constants();
+	void reset_link_rest_lengths();
+	void update_link_constants();
+
+	void apply_nodes_transform(const Transform &p_transform);
+
+	void add_velocity(const Vector3 &p_velocity);
+	void apply_forces();
+
+	bool create_from_trimesh(const PoolVector<int> &p_indices, const PoolVector<Vector3> &p_vertices);
+	void generate_bending_constraints(int p_distance);
+	void append_link(uint32_t p_node1, uint32_t p_node2);
+	void append_face(uint32_t p_node1, uint32_t p_node2, uint32_t p_node3);
+
+	void p_solve_links(real_t kst, real_t ti);
+	void v_solve_links(real_t kst);
+
+	void destroy();
 };
 
-#endif // SOFT_BODY_BULLET_H
+#endif // SOFT_BODY_SW_H

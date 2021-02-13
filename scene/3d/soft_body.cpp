@@ -36,7 +36,6 @@
 #include "scene/3d/collision_object.h"
 #include "scene/3d/physics_body.h"
 #include "scene/3d/skeleton.h"
-#include "servers/physics_server.h"
 
 SoftBodyVisualServerHandler::SoftBodyVisualServerHandler() {}
 
@@ -248,6 +247,7 @@ bool SoftBody::_get_property_pinned_points(int p_item, const String &p_what, Var
 
 void SoftBody::_changed_callback(Object *p_changed, const char *p_prop) {
 	prepare_physics_server();
+
 	_reset_points_offsets();
 #ifdef TOOLS_ENABLED
 	if (p_changed == this) {
@@ -267,6 +267,7 @@ void SoftBody::_notification(int p_what) {
 
 			RID space = get_world()->get_space();
 			PhysicsServer::get_singleton()->soft_body_set_space(physics_rid, space);
+
 			prepare_physics_server();
 		} break;
 		case NOTIFICATION_READY: {
@@ -293,6 +294,10 @@ void SoftBody::_notification(int p_what) {
 		case NOTIFICATION_VISIBILITY_CHANGED: {
 
 			_update_pickable();
+
+			if (is_inside_tree()) {
+				prepare_physics_server();
+			}
 
 		} break;
 		case NOTIFICATION_EXIT_WORLD: {
@@ -345,8 +350,8 @@ void SoftBody::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_linear_stiffness", "linear_stiffness"), &SoftBody::set_linear_stiffness);
 	ClassDB::bind_method(D_METHOD("get_linear_stiffness"), &SoftBody::get_linear_stiffness);
 
-	ClassDB::bind_method(D_METHOD("set_areaAngular_stiffness", "areaAngular_stiffness"), &SoftBody::set_areaAngular_stiffness);
-	ClassDB::bind_method(D_METHOD("get_areaAngular_stiffness"), &SoftBody::get_areaAngular_stiffness);
+	ClassDB::bind_method(D_METHOD("set_angular_stiffness", "angular_stiffness"), &SoftBody::set_angular_stiffness);
+	ClassDB::bind_method(D_METHOD("get_angular_stiffness"), &SoftBody::get_angular_stiffness);
 
 	ClassDB::bind_method(D_METHOD("set_volume_stiffness", "volume_stiffness"), &SoftBody::set_volume_stiffness);
 	ClassDB::bind_method(D_METHOD("get_volume_stiffness"), &SoftBody::get_volume_stiffness);
@@ -374,7 +379,7 @@ void SoftBody::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "simulation_precision", PROPERTY_HINT_RANGE, "1,100,1"), "set_simulation_precision", "get_simulation_precision");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "total_mass", PROPERTY_HINT_RANGE, "0.01,10000,1"), "set_total_mass", "get_total_mass");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "linear_stiffness", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_linear_stiffness", "get_linear_stiffness");
-	ADD_PROPERTY(PropertyInfo(Variant::REAL, "areaAngular_stiffness", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_areaAngular_stiffness", "get_areaAngular_stiffness");
+	ADD_PROPERTY(PropertyInfo(Variant::REAL, "angular_stiffness", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_angular_stiffness", "get_angular_stiffness");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "volume_stiffness", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_volume_stiffness", "get_volume_stiffness");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "pressure_coefficient"), "set_pressure_coefficient", "get_pressure_coefficient");
 	ADD_PROPERTY(PropertyInfo(Variant::REAL, "damping_coefficient", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_damping_coefficient", "get_damping_coefficient");
@@ -456,7 +461,7 @@ void SoftBody::prepare_physics_server() {
 		return;
 	}
 
-	if (get_mesh().is_valid()) {
+	if (get_mesh().is_valid() && is_visible_in_tree()) {
 
 		become_mesh_owner();
 		PhysicsServer::get_singleton()->soft_body_set_mesh(physics_rid, get_mesh());
@@ -618,12 +623,12 @@ real_t SoftBody::get_linear_stiffness() {
 	return PhysicsServer::get_singleton()->soft_body_get_linear_stiffness(physics_rid);
 }
 
-void SoftBody::set_areaAngular_stiffness(real_t p_areaAngular_stiffness) {
-	PhysicsServer::get_singleton()->soft_body_set_areaAngular_stiffness(physics_rid, p_areaAngular_stiffness);
+void SoftBody::set_angular_stiffness(real_t p_angular_stiffness) {
+	PhysicsServer::get_singleton()->soft_body_set_angular_stiffness(physics_rid, p_angular_stiffness);
 }
 
-real_t SoftBody::get_areaAngular_stiffness() {
-	return PhysicsServer::get_singleton()->soft_body_get_areaAngular_stiffness(physics_rid);
+real_t SoftBody::get_angular_stiffness() {
+	return PhysicsServer::get_singleton()->soft_body_get_angular_stiffness(physics_rid);
 }
 
 void SoftBody::set_volume_stiffness(real_t p_volume_stiffness) {

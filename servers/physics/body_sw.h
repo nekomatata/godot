@@ -33,7 +33,6 @@
 
 #include "area_sw.h"
 #include "collision_object_sw.h"
-#include "core/vset.h"
 
 class ConstraintSW;
 
@@ -83,7 +82,6 @@ class BodySW : public CollisionObjectSW {
 	SelfList<BodySW> inertia_update_list;
 	SelfList<BodySW> direct_state_query_list;
 
-	VSet<RID> exceptions;
 	bool omit_force_integration;
 	bool active;
 
@@ -181,11 +179,6 @@ public:
 
 	_FORCE_INLINE_ bool can_report_contacts() const { return !contacts.empty(); }
 	_FORCE_INLINE_ void add_contact(const Vector3 &p_local_pos, const Vector3 &p_local_normal, real_t p_depth, int p_local_shape, const Vector3 &p_collider_pos, int p_collider_shape, ObjectID p_collider_instance_id, const RID &p_collider, const Vector3 &p_collider_velocity_at_pos);
-
-	_FORCE_INLINE_ void add_exception(const RID &p_exception) { exceptions.insert(p_exception); }
-	_FORCE_INLINE_ void remove_exception(const RID &p_exception) { exceptions.erase(p_exception); }
-	_FORCE_INLINE_ bool has_exception(const RID &p_exception) const { return exceptions.has(p_exception); }
-	_FORCE_INLINE_ const VSet<RID> &get_exceptions() const { return exceptions; }
 
 	_FORCE_INLINE_ uint64_t get_island_step() const { return island_step; }
 	_FORCE_INLINE_ void set_island_step(uint64_t p_step) { island_step = p_step; }

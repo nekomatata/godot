@@ -32,10 +32,11 @@
 #define SOFT_PHYSICS_BODY_H
 
 #include "scene/3d/mesh_instance.h"
+#include "servers/physics_server.h"
 
 class SoftBody;
 
-class SoftBodyVisualServerHandler {
+class SoftBodyVisualServerHandler : public VisualServerHandler {
 
 	friend class SoftBody;
 
@@ -150,8 +151,8 @@ public:
 	void set_linear_stiffness(real_t p_linear_stiffness);
 	real_t get_linear_stiffness();
 
-	void set_areaAngular_stiffness(real_t p_areaAngular_stiffness);
-	real_t get_areaAngular_stiffness();
+	void set_angular_stiffness(real_t p_angular_stiffness);
+	real_t get_angular_stiffness();
 
 	void set_volume_stiffness(real_t p_volume_stiffness);
 	real_t get_volume_stiffness();

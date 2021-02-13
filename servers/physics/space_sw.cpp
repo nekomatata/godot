@@ -1152,6 +1152,18 @@ const SelfList<AreaSW>::List &SpaceSW::get_moved_area_list() const {
 	return area_moved_list;
 }
 
+const SelfList<SoftBodySW>::List &SpaceSW::get_active_soft_body_list() const {
+	return active_soft_body_list;
+}
+
+void SpaceSW::soft_body_add_to_active_list(SelfList<SoftBodySW> *p_soft_body) {
+	active_soft_body_list.add(p_soft_body);
+}
+
+void SpaceSW::soft_body_remove_from_active_list(SelfList<SoftBodySW> *p_soft_body) {
+	active_soft_body_list.remove(p_soft_body);
+}
+
 void SpaceSW::call_queries() {
 
 	while (state_query_list.first()) {

@@ -33,6 +33,7 @@
 
 #include "broad_phase_sw.h"
 #include "core/self_list.h"
+#include "core/vset.h"
 #include "servers/physics_server.h"
 #include "shape_sw.h"
 
@@ -48,7 +49,8 @@ class CollisionObjectSW : public ShapeOwnerSW {
 public:
 	enum Type {
 		TYPE_AREA,
-		TYPE_BODY
+		TYPE_BODY,
+		TYPE_SOFT_BODY,
 	};
 
 private:
@@ -57,6 +59,8 @@ private:
 	ObjectID instance_id;
 	uint32_t collision_layer;
 	uint32_t collision_mask;
+
+	VSet<RID> exceptions;
 
 	struct Shape {
 
@@ -128,8 +132,8 @@ public:
 	_FORCE_INLINE_ const AABB &get_shape_aabb(int p_index) const { return shapes[p_index].aabb_cache; }
 	_FORCE_INLINE_ real_t get_shape_area(int p_index) const { return shapes[p_index].area_cache; }
 
-	_FORCE_INLINE_ Transform get_transform() const { return transform; }
-	_FORCE_INLINE_ Transform get_inv_transform() const { return inv_transform; }
+	_FORCE_INLINE_ const Transform &get_transform() const { return transform; }
+	_FORCE_INLINE_ const Transform &get_inv_transform() const { return inv_transform; }
 	_FORCE_INLINE_ SpaceSW *get_space() const { return space; }
 
 	_FORCE_INLINE_ void set_ray_pickable(bool p_enable) { ray_pickable = p_enable; }
@@ -156,6 +160,11 @@ public:
 	_FORCE_INLINE_ bool test_collision_mask(CollisionObjectSW *p_other) const {
 		return collision_layer & p_other->collision_mask || p_other->collision_layer & collision_mask;
 	}
+
+	_FORCE_INLINE_ void add_exception(const RID &p_exception) { exceptions.insert(p_exception); }
+	_FORCE_INLINE_ void remove_exception(const RID &p_exception) { exceptions.erase(p_exception); }
+	_FORCE_INLINE_ bool has_exception(const RID &p_exception) const { return exceptions.has(p_exception); }
+	_FORCE_INLINE_ const VSet<RID> &get_exceptions() const { return exceptions; }
 
 	void remove_shape(ShapeSW *p_shape);
 	void remove_shape(int p_index);

@@ -40,6 +40,7 @@
 #include "core/hash_map.h"
 #include "core/project_settings.h"
 #include "core/typedefs.h"
+#include "soft_body_sw.h"
 
 class PhysicsDirectSpaceStateSW : public PhysicsDirectSpaceState {
 
@@ -84,6 +85,7 @@ private:
 	SelfList<BodySW>::List state_query_list;
 	SelfList<AreaSW>::List monitor_query_list;
 	SelfList<AreaSW>::List area_moved_list;
+	SelfList<SoftBodySW>::List active_soft_body_list;
 
 	static void *_broadphase_pair(CollisionObjectSW *A, int p_subindex_A, CollisionObjectSW *B, int p_subindex_B, void *p_self);
 	static void _broadphase_unpair(CollisionObjectSW *A, int p_subindex_A, CollisionObjectSW *B, int p_subindex_B, void *p_data, void *p_self);
@@ -147,6 +149,10 @@ public:
 	void area_add_to_moved_list(SelfList<AreaSW> *p_area);
 	void area_remove_from_moved_list(SelfList<AreaSW> *p_area);
 	const SelfList<AreaSW>::List &get_moved_area_list() const;
+
+	const SelfList<SoftBodySW>::List &get_active_soft_body_list() const;
+	void soft_body_add_to_active_list(SelfList<SoftBodySW> *p_soft_body);
+	void soft_body_remove_from_active_list(SelfList<SoftBodySW> *p_soft_body);
 
 	BroadPhaseSW *get_broadphase();
 

@@ -152,6 +152,8 @@ void StepSW::step(SpaceSW *p_space, real_t p_delta, int p_iterations) {
 
 	const SelfList<BodySW>::List *body_list = &p_space->get_active_body_list();
 
+	const SelfList<SoftBodySW>::List *soft_body_list = &p_space->get_active_soft_body_list();
+
 	/* INTEGRATE FORCES */
 
 	uint64_t profile_begtime = OS::get_singleton()->get_ticks_usec();
@@ -165,6 +167,17 @@ void StepSW::step(SpaceSW *p_space, real_t p_delta, int p_iterations) {
 		b->self()->integrate_forces(p_delta);
 		b = b->next();
 		active_count++;
+	}
+
+	/* UPDATE SOFT BODY MOTION */
+
+	{
+		const SelfList<SoftBodySW> *sb = soft_body_list->first();
+		while (sb) {
+			sb->self()->predict_motion(p_delta);
+			sb = sb->next();
+			active_count++;
+		}
 	}
 
 	p_space->set_active_objects(active_count);
@@ -279,6 +292,16 @@ void StepSW::step(SpaceSW *p_space, real_t p_delta, int p_iterations) {
 
 			_check_suspend(bi, p_delta);
 			bi = bi->get_island_list_next();
+		}
+	}
+
+	/* UPDATE SOFT BODY CONSTRAINTS */
+
+	{
+		const SelfList<SoftBodySW> *sb = soft_body_list->first();
+		while (sb) {
+			sb->self()->solve_constraints(p_delta);
+			sb = sb->next();
 		}
 	}
 

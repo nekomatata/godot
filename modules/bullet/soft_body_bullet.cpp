@@ -42,7 +42,7 @@ SoftBodyBullet::SoftBodyBullet() :
 		simulation_precision(5),
 		total_mass(1.),
 		linear_stiffness(0.5),
-		areaAngular_stiffness(0.5),
+		angular_stiffness(0.5),
 		volume_stiffness(0.5),
 		pressure_coefficient(0.),
 		pose_matching_coefficient(0.),
@@ -76,7 +76,7 @@ void SoftBodyBullet::on_enter_area(AreaBullet *p_area) {}
 
 void SoftBodyBullet::on_exit_area(AreaBullet *p_area) {}
 
-void SoftBodyBullet::update_visual_server(SoftBodyVisualServerHandler *p_visual_server_handler) {
+void SoftBodyBullet::update_visual_server(VisualServerHandler *p_visual_server_handler) {
 	if (!bt_soft_body)
 		return;
 
@@ -179,24 +179,6 @@ void SoftBodyBullet::get_node_position(int p_node_index, Vector3 &r_position) co
 	}
 }
 
-void SoftBodyBullet::get_node_offset(int p_node_index, Vector3 &r_offset) const {
-	if (soft_mesh.is_null())
-		return;
-
-	Array arrays = soft_mesh->surface_get_arrays(0);
-	PoolVector<Vector3> vertices(arrays[VS::ARRAY_VERTEX]);
-
-	if (0 <= p_node_index && vertices.size() > p_node_index) {
-		r_offset = vertices[p_node_index];
-	}
-}
-
-void SoftBodyBullet::get_node_offset(int p_node_index, btVector3 &r_offset) const {
-	Vector3 off;
-	get_node_offset(p_node_index, off);
-	G_TO_B(off, r_offset);
-}
-
 void SoftBodyBullet::set_node_mass(int node_index, btScalar p_mass) {
 	if (0 >= p_mass) {
 		pin_node(node_index);
@@ -268,10 +250,10 @@ void SoftBodyBullet::set_linear_stiffness(real_t p_val) {
 	}
 }
 
-void SoftBodyBullet::set_areaAngular_stiffness(real_t p_val) {
-	areaAngular_stiffness = p_val;
+void SoftBodyBullet::set_angular_stiffness(real_t p_val) {
+	angular_stiffness = p_val;
 	if (bt_soft_body) {
-		mat0->m_kAST = areaAngular_stiffness;
+		mat0->m_kAST = angular_stiffness;
 	}
 }
 
@@ -419,7 +401,7 @@ void SoftBodyBullet::setup_soft_body() {
 	bt_soft_body->generateBendingConstraints(2, mat0);
 
 	mat0->m_kLST = linear_stiffness;
-	mat0->m_kAST = areaAngular_stiffness;
+	mat0->m_kAST = angular_stiffness;
 	mat0->m_kVST = volume_stiffness;
 
 	// Clusters allow to have Soft vs Soft collision but doesn't work well right now

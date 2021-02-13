@@ -668,11 +668,15 @@ uint32_t PhysicsServerSW::body_get_collision_mask(RID p_body) const {
 }
 
 void PhysicsServerSW::body_attach_object_instance_id(RID p_body, uint32_t p_id) {
-
-	BodySW *body = body_owner.get(p_body);
-	ERR_FAIL_COND(!body);
-
-	body->set_instance_id(p_id);
+	if (body_owner.owns(p_body)) {
+		BodySW *body = body_owner.get(p_body);
+		body->set_instance_id(p_id);
+	} else if (soft_body_owner.owns(p_body)) {
+		SoftBodySW *soft_body = soft_body_owner.get(p_body);
+		soft_body->set_instance_id(p_id);
+	} else {
+		ERR_FAIL_MSG("Invalid ID.");
+	}
 };
 
 uint32_t PhysicsServerSW::body_get_object_instance_id(RID p_body) const {
@@ -985,6 +989,315 @@ PhysicsDirectBodyState *PhysicsServerSW::body_get_direct_state(RID p_body) {
 
 	direct_state->body = body;
 	return direct_state;
+}
+
+/* SOFT BODY */
+
+RID PhysicsServerSW::soft_body_create(bool p_init_sleeping) {
+	SoftBodySW *soft_body = memnew(SoftBodySW);
+	if (p_init_sleeping) {
+		// TODO: fix activation
+		//soft_body->set_state(BODY_STATE_SLEEPING, p_init_sleeping);
+	}
+	RID rid = soft_body_owner.make_rid(soft_body);
+	soft_body->set_self(rid);
+	return rid;
+}
+
+void PhysicsServerSW::soft_body_update_visual_server(RID p_body, VisualServerHandler *p_visual_server_handler) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->update_visual_server(p_visual_server_handler);
+}
+
+void PhysicsServerSW::soft_body_set_space(RID p_body, RID p_space) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	SpaceSW *space = nullptr;
+	if (p_space.is_valid()) {
+		space = space_owner.get(p_space);
+		ERR_FAIL_COND(!space);
+	}
+
+	if (soft_body->get_space() == space) {
+		return;
+	}
+
+	soft_body->set_space(space);
+}
+
+RID PhysicsServerSW::soft_body_get_space(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, RID());
+
+	SpaceSW *space = soft_body->get_space();
+	if (!space) {
+		return RID();
+	}
+	return space->get_self();
+}
+
+void PhysicsServerSW::soft_body_set_collision_layer(RID p_body, uint32_t p_layer) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_collision_layer(p_layer);
+}
+
+uint32_t PhysicsServerSW::soft_body_get_collision_layer(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0);
+
+	return soft_body->get_collision_layer();
+}
+
+void PhysicsServerSW::soft_body_set_collision_mask(RID p_body, uint32_t p_mask) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_collision_mask(p_mask);
+}
+
+uint32_t PhysicsServerSW::soft_body_get_collision_mask(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0);
+
+	return soft_body->get_collision_mask();
+}
+
+void PhysicsServerSW::soft_body_add_collision_exception(RID p_body, RID p_body_b) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->add_exception(p_body_b);
+
+	// TODO: fix activation
+	//soft_body->wakeup();
+}
+
+void PhysicsServerSW::soft_body_remove_collision_exception(RID p_body, RID p_body_b) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->remove_exception(p_body_b);
+}
+
+void PhysicsServerSW::soft_body_get_collision_exceptions(RID p_body, List<RID> *p_exceptions) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	for (int i = 0; i < soft_body->get_exceptions().size(); i++) {
+		p_exceptions->push_back(soft_body->get_exceptions()[i]);
+	}
+}
+
+void PhysicsServerSW::soft_body_set_state(RID p_body, BodyState p_state, const Variant &p_variant) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_state(p_state, p_variant);
+}
+
+Variant PhysicsServerSW::soft_body_get_state(RID p_body, BodyState p_state) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, Variant());
+
+	return soft_body->get_state(p_state);
+}
+
+void PhysicsServerSW::soft_body_set_transform(RID p_body, const Transform &p_transform) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_state(BODY_STATE_TRANSFORM, p_transform);
+}
+
+void PhysicsServerSW::soft_body_set_ray_pickable(RID p_body, bool p_enable) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_ray_pickable(p_enable);
+}
+
+bool PhysicsServerSW::soft_body_is_ray_pickable(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, false);
+
+	return soft_body->is_ray_pickable();
+}
+
+void PhysicsServerSW::soft_body_set_simulation_precision(RID p_body, int p_simulation_precision) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_iteration_count(p_simulation_precision);
+}
+
+int PhysicsServerSW::soft_body_get_simulation_precision(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0.f);
+
+	return soft_body->get_iteration_count();
+}
+
+void PhysicsServerSW::soft_body_set_total_mass(RID p_body, real_t p_total_mass) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_total_mass(p_total_mass);
+}
+
+real_t PhysicsServerSW::soft_body_get_total_mass(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0.f);
+
+	return soft_body->get_total_mass();
+}
+
+void PhysicsServerSW::soft_body_set_linear_stiffness(RID p_body, real_t p_stiffness) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_linear_stiffness(p_stiffness);
+}
+
+real_t PhysicsServerSW::soft_body_get_linear_stiffness(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0.f);
+
+	return soft_body->get_linear_stiffness();
+}
+
+void PhysicsServerSW::soft_body_set_angular_stiffness(RID p_body, real_t p_stiffness) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_angular_stiffness(p_stiffness);
+}
+
+real_t PhysicsServerSW::soft_body_get_angular_stiffness(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0.f);
+
+	return soft_body->get_angular_stiffness();
+}
+
+void PhysicsServerSW::soft_body_set_volume_stiffness(RID p_body, real_t p_stiffness) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_volume_stiffness(p_stiffness);
+}
+
+real_t PhysicsServerSW::soft_body_get_volume_stiffness(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0.f);
+
+	return soft_body->get_volume_stiffness();
+}
+
+void PhysicsServerSW::soft_body_set_pressure_coefficient(RID p_body, real_t p_pressure_coefficient) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_pressure_coefficient(p_pressure_coefficient);
+}
+
+real_t PhysicsServerSW::soft_body_get_pressure_coefficient(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0.f);
+
+	return soft_body->get_pressure_coefficient();
+}
+
+void PhysicsServerSW::soft_body_set_pose_matching_coefficient(RID p_body, real_t p_pose_matching_coefficient) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	return soft_body->set_pose_matching_coefficient(p_pose_matching_coefficient);
+}
+
+real_t PhysicsServerSW::soft_body_get_pose_matching_coefficient(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0.f);
+
+	return soft_body->get_pose_matching_coefficient();
+}
+
+void PhysicsServerSW::soft_body_set_damping_coefficient(RID p_body, real_t p_damping_coefficient) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_damping_coefficient(p_damping_coefficient);
+}
+
+real_t PhysicsServerSW::soft_body_get_damping_coefficient(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0.f);
+
+	return soft_body->get_damping_coefficient();
+}
+
+void PhysicsServerSW::soft_body_set_drag_coefficient(RID p_body, real_t p_drag_coefficient) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_drag_coefficient(p_drag_coefficient);
+}
+
+real_t PhysicsServerSW::soft_body_get_drag_coefficient(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, 0.f);
+
+	return soft_body->get_drag_coefficient();
+}
+
+void PhysicsServerSW::soft_body_set_mesh(RID p_body, const REF &p_mesh) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_mesh(p_mesh);
+}
+
+void PhysicsServerSW::soft_body_move_point(RID p_body, int p_point_index, const Vector3 &p_global_position) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->set_vertex_position(p_point_index, p_global_position);
+}
+
+Vector3 PhysicsServerSW::soft_body_get_point_global_position(RID p_body, int p_point_index) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, Vector3());
+
+	return soft_body->get_vertex_position(p_point_index);
+}
+
+void PhysicsServerSW::soft_body_remove_all_pinned_points(RID p_body) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	soft_body->unpin_all_vertices();
+}
+
+void PhysicsServerSW::soft_body_pin_point(RID p_body, int p_point_index, bool p_pin) {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND(!soft_body);
+
+	if (p_pin) {
+		soft_body->pin_vertex(p_point_index);
+	} else {
+		soft_body->unpin_vertex(p_point_index);
+	}
+}
+
+bool PhysicsServerSW::soft_body_is_point_pinned(RID p_body, int p_point_index) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, false);
+
+	return soft_body->is_vertex_pinned(p_point_index);
 }
 
 /* JOINT API */
@@ -1352,6 +1665,15 @@ void PhysicsServerSW::free(RID p_rid) {
 
 		body_owner.free(p_rid);
 		memdelete(body);
+
+	} else if (soft_body_owner.owns(p_rid)) {
+
+		SoftBodySW *soft_body = soft_body_owner.get(p_rid);
+
+		soft_body->set_space(nullptr);
+
+		soft_body_owner.free(p_rid);
+		memdelete(soft_body);
 
 	} else if (area_owner.owns(p_rid)) {
 
