@@ -39,7 +39,7 @@
 #include "editor/editor_scale.h"
 #endif
 
-RichTextLabel::Item *RichTextLabel::_get_next_item(Item *p_item, bool p_free) {
+RichTextLabel::Item *RichTextLabel::_get_next_item(Item *p_item, bool p_free) const {
 
 	if (p_free) {
 
@@ -88,7 +88,7 @@ RichTextLabel::Item *RichTextLabel::_get_next_item(Item *p_item, bool p_free) {
 	return NULL;
 }
 
-RichTextLabel::Item *RichTextLabel::_get_prev_item(Item *p_item, bool p_free) {
+RichTextLabel::Item *RichTextLabel::_get_prev_item(Item *p_item, bool p_free) const {
 	if (p_free) {
 
 		if (p_item->subitems.size()) {
@@ -2578,7 +2578,7 @@ bool RichTextLabel::search(const String &p_string, bool p_from_selection, bool p
 	return false;
 }
 
-String RichTextLabel::get_selected_text() {
+String RichTextLabel::get_selected_text() const {
 	if (!selection.active || !selection.enabled) {
 		return "";
 	}
@@ -2625,6 +2625,72 @@ void RichTextLabel::selection_copy() {
 bool RichTextLabel::is_selection_enabled() const {
 
 	return selection.enabled;
+}
+
+int RichTextLabel::get_selection_from() const {
+	if (!selection.active || !selection.enabled) {
+		return -1;
+	}
+
+	int index_from = 0;
+
+	RichTextLabel::Item *item = selection.from;
+
+	while (item) {
+		if (item->type == ITEM_TEXT) {
+			if (item == selection.from) {
+				index_from += selection.from_char;
+			} else {
+				const String &text = static_cast<ItemText *>(item)->text;
+				index_from += text.length();
+			}
+		} else if (item->type == ITEM_NEWLINE) {
+			if (item != selection.from) {
+				index_from++;
+			}
+		} else if (item->type == ITEM_INDENT) {
+			if (item != selection.from) {
+				index_from++;
+			}
+		}
+
+		item = _get_prev_item(item, true);
+	}
+
+	return index_from;
+}
+
+int RichTextLabel::get_selection_to() const {
+	if (!selection.active || !selection.enabled) {
+		return -1;
+	}
+
+	int index_to = 0;
+
+	RichTextLabel::Item *item = selection.to;
+
+	while (item) {
+		if (item->type == ITEM_TEXT) {
+			if (item == selection.to) {
+				index_to += selection.to_char;
+			} else {
+				const String &text = static_cast<ItemText *>(item)->text;
+				index_to += text.length();
+			}
+		} else if (item->type == ITEM_NEWLINE) {
+			if (item != selection.to) {
+				index_to++;
+			}
+		} else if (item->type == ITEM_INDENT) {
+			if (item != selection.to) {
+				index_to++;
+			}
+		}
+
+		item = _get_prev_item(item, true);
+	}
+
+	return index_to;
 }
 
 void RichTextLabel::set_bbcode(const String &p_bbcode) {
@@ -2785,6 +2851,11 @@ void RichTextLabel::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_selection_enabled", "enabled"), &RichTextLabel::set_selection_enabled);
 	ClassDB::bind_method(D_METHOD("is_selection_enabled"), &RichTextLabel::is_selection_enabled);
+
+	ClassDB::bind_method(D_METHOD("get_selection_from"), &RichTextLabel::get_selection_from);
+	ClassDB::bind_method(D_METHOD("get_selection_to"), &RichTextLabel::get_selection_to);
+
+	ClassDB::bind_method(D_METHOD("get_selected_text"), &RichTextLabel::get_selected_text);
 
 	ClassDB::bind_method(D_METHOD("parse_bbcode", "bbcode"), &RichTextLabel::parse_bbcode);
 	ClassDB::bind_method(D_METHOD("append_bbcode", "bbcode"), &RichTextLabel::append_bbcode);

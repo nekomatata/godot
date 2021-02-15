@@ -387,8 +387,8 @@ private:
 	void _scroll_changed(double);
 
 	void _gui_input(Ref<InputEvent> p_event);
-	Item *_get_next_item(Item *p_item, bool p_free = false);
-	Item *_get_prev_item(Item *p_item, bool p_free = false);
+	Item *_get_next_item(Item *p_item, bool p_free = false) const;
+	Item *_get_prev_item(Item *p_item, bool p_free = false) const;
 
 	Rect2 _get_text_rect();
 	Ref<RichTextEffect> _get_custom_effect_by_code(String p_bbcode_identifier);
@@ -473,7 +473,9 @@ public:
 
 	void set_selection_enabled(bool p_enabled);
 	bool is_selection_enabled() const;
-	String get_selected_text();
+	int get_selection_from() const;
+	int get_selection_to() const;
+	String get_selected_text() const;
 	void selection_copy();
 
 	Error parse_bbcode(const String &p_bbcode);
