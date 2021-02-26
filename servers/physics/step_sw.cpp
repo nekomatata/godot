@@ -171,13 +171,11 @@ void StepSW::step(SpaceSW *p_space, real_t p_delta, int p_iterations) {
 
 	/* UPDATE SOFT BODY MOTION */
 
-	{
-		const SelfList<SoftBodySW> *sb = soft_body_list->first();
-		while (sb) {
-			sb->self()->predict_motion(p_delta);
-			sb = sb->next();
-			active_count++;
-		}
+	const SelfList<SoftBodySW> *sb = soft_body_list->first();
+	while (sb) {
+		sb->self()->predict_motion(p_delta);
+		sb = sb->next();
+		active_count++;
 	}
 
 	p_space->set_active_objects(active_count);
@@ -233,6 +231,21 @@ void StepSW::step(SpaceSW *p_space, real_t p_delta, int p_iterations) {
 			constraint_island_list = c;
 		}
 		p_space->area_remove_from_moved_list((SelfList<AreaSW> *)aml.first()); //faster to remove here
+	}
+
+	sb = soft_body_list->first();
+	while (sb) {
+		for (const Set<ConstraintSW *>::Element *E = sb->self()->get_constraints().front(); E; E = E->next()) {
+
+			ConstraintSW *c = E->get();
+			if (c->get_island_step() == _step)
+				continue;
+			c->set_island_step(_step);
+			c->set_island_next(NULL);
+			c->set_island_list_next(constraint_island_list);
+			constraint_island_list = c;
+		}
+		sb = sb->next();
 	}
 
 	{ //profile
@@ -297,12 +310,10 @@ void StepSW::step(SpaceSW *p_space, real_t p_delta, int p_iterations) {
 
 	/* UPDATE SOFT BODY CONSTRAINTS */
 
-	{
-		const SelfList<SoftBodySW> *sb = soft_body_list->first();
-		while (sb) {
-			sb->self()->solve_constraints(p_delta);
-			sb = sb->next();
-		}
+	sb = soft_body_list->first();
+	while (sb) {
+		sb->self()->solve_constraints(p_delta);
+		sb = sb->next();
 	}
 
 	{ //profile

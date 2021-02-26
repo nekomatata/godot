@@ -34,9 +34,12 @@
 #include "collision_object_sw.h"
 
 #include "core/local_vector.h"
+#include "core/set.h"
 #include "core/math/aabb.h"
 #include "core/math/vector3.h"
 #include "scene/resources/mesh.h"
+
+class ConstraintSW;
 
 class SoftBodySW : public CollisionObjectSW {
 	Ref<Mesh> soft_mesh;
@@ -97,14 +100,23 @@ class SoftBodySW : public CollisionObjectSW {
 
 	SelfList<SoftBodySW> active_list;
 
+	Set<ConstraintSW *> constraints;
+
 protected:
 	virtual void _shapes_changed();
 
 public:
 	SoftBodySW();
 
+	const AABB &get_bounds() const { return bounds; }
+
 	void set_state(PhysicsServer::BodyState p_state, const Variant &p_variant);
 	Variant get_state(PhysicsServer::BodyState p_state) const;
+
+	_FORCE_INLINE_ void add_constraint(ConstraintSW *p_constraint) { constraints.insert(p_constraint); }
+	_FORCE_INLINE_ void remove_constraint(ConstraintSW *p_constraint) { constraints.erase(p_constraint); }
+	_FORCE_INLINE_ const Set<ConstraintSW *> &get_constraints() const { return constraints; }
+	_FORCE_INLINE_ void clear_constraints() { constraints.clear(); }
 
 	virtual void set_space(SpaceSW *p_space);
 
@@ -151,6 +163,7 @@ public:
 	void solve_constraints(real_t p_delta);
 
 private:
+	void update_bounds();
 	void update_constants();
 	void reset_link_rest_lengths();
 	void update_link_constants();
@@ -168,7 +181,33 @@ private:
 	void p_solve_links(real_t kst, real_t ti);
 	void v_solve_links(real_t kst);
 
+	void initialize_shape(bool p_force_move = true);
+	void deinitialize_shape();
+
 	void destroy();
+};
+
+class SoftBodyShapeSW : public ShapeSW {
+	SoftBodySW *soft_body = nullptr;
+
+public:
+	SoftBodySW *get_soft_body() const { return soft_body; }
+
+	virtual PhysicsServer::ShapeType get_type() const { return PhysicsServer::SHAPE_CUSTOM; }
+	virtual void project_range(const Vector3 &p_normal, const Transform &p_transform, real_t &r_min, real_t &r_max) const { r_min = r_max = 0.0; }
+	virtual Vector3 get_support(const Vector3 &p_normal) const { return Vector3(); }
+	virtual void get_supports(const Vector3 &p_normal, int p_max, Vector3 *r_supports, int &r_amount, FeatureType &r_type) const { r_amount = 0; }
+
+	virtual bool intersect_segment(const Vector3 &p_begin, const Vector3 &p_end, Vector3 &r_result, Vector3 &r_normal) const;
+	virtual bool intersect_point(const Vector3 &p_point) const;
+	virtual Vector3 get_closest_point_to(const Vector3 &p_point) const;
+	virtual Vector3 get_moment_of_inertia(real_t p_mass) const { return Vector3(); }
+
+	virtual void set_data(const Variant &p_data) {}
+	virtual Variant get_data() const { return Variant(); }
+
+	SoftBodyShapeSW(SoftBodySW *p_soft_body);
+	~SoftBodyShapeSW() {}
 };
 
 #endif // SOFT_BODY_SW_H

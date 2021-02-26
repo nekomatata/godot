@@ -33,27 +33,15 @@
 
 #include "body_sw.h"
 #include "constraint_sw.h"
+#include "soft_body_sw.h"
 
-class BodyPairSW : public ConstraintSW {
+class BodyContactSW : public ConstraintSW {
+protected:
 	enum {
-
 		MAX_CONTACTS = 4
 	};
 
-	union {
-		struct {
-			BodySW *A;
-			BodySW *B;
-		};
-
-		BodySW *_arr[2];
-	};
-
-	int shape_A;
-	int shape_B;
-
 	struct Contact {
-
 		Vector3 position;
 		Vector3 normal;
 		Vector3 local_A, local_B;
@@ -82,9 +70,38 @@ class BodyPairSW : public ConstraintSW {
 	void contact_added_callback(const Vector3 &p_point_A, const Vector3 &p_point_B);
 
 	void validate_contacts();
-	bool _test_ccd(real_t p_step, BodySW *p_A, int p_shape_A, const Transform &p_xform_A, BodySW *p_B, int p_shape_B, const Transform &p_xform_B);
 
 	SpaceSW *space;
+
+	virtual CollisionObjectSW *get_object_a() const = 0;
+	virtual CollisionObjectSW *get_object_b() const = 0;
+
+	BodyContactSW(BodySW **p_body_ptr = nullptr, int p_body_count = 0) :
+			ConstraintSW(p_body_ptr, p_body_count) {
+	}
+
+public:
+	virtual ~BodyContactSW() {}
+};
+
+class BodyPairSW : public BodyContactSW {
+	union {
+		struct {
+			BodySW *A;
+			BodySW *B;
+		};
+
+		BodySW *_arr[2];
+	};
+
+	int shape_A;
+	int shape_B;
+
+	bool _test_ccd(real_t p_step, BodySW *p_A, int p_shape_A, const Transform &p_xform_A, BodySW *p_B, int p_shape_B, const Transform &p_xform_B);
+
+protected:
+	virtual CollisionObjectSW *get_object_a() const override { return A; }
+	virtual CollisionObjectSW *get_object_b() const override { return B; }
 
 public:
 	bool setup(real_t p_step);
@@ -92,6 +109,24 @@ public:
 
 	BodyPairSW(BodySW *p_A, int p_shape_A, BodySW *p_B, int p_shape_B);
 	~BodyPairSW();
+};
+
+class BodySoftPairSW : public BodyContactSW {
+	BodySW *body;
+	SoftBodySW *soft_body;
+
+	int body_shape;
+
+protected:
+	virtual CollisionObjectSW *get_object_a() const override { return body; }
+	virtual CollisionObjectSW *get_object_b() const override { return soft_body; }
+
+public:
+	bool setup(real_t p_step);
+	void solve(real_t p_step);
+
+	BodySoftPairSW(BodySW *p_A, int p_shape_A, SoftBodySW *p_B);
+	~BodySoftPairSW();
 };
 
 #endif // BODY_PAIR__SW_H

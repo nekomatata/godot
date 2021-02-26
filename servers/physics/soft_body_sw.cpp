@@ -34,10 +34,14 @@
 #include "core/map.h"
 
 #define MAX_DISPLACEMENT 1000.0
+#define COLLISION_MARGIN 0.001
+#define MOVE_COLLISION_THRESHOLD 0.01
 
 SoftBodySW::SoftBodySW() :
 		CollisionObjectSW(TYPE_SOFT_BODY),
 		active_list(this) {
+
+	_set_static(false);
 
 	// TODO: dangular stiffness is actually not used in bullet
 	// TODO: volume stiffness is actually not used in bullet
@@ -108,6 +112,8 @@ void SoftBodySW::set_space(SpaceSW *p_space) {
 	if (get_space()) {
 		// TODO: activation
 		get_space()->soft_body_remove_from_active_list(&active_list);
+
+		deinitialize_shape();
 	}
 
 	_set_space(p_space);
@@ -115,6 +121,10 @@ void SoftBodySW::set_space(SpaceSW *p_space) {
 	if (get_space()) {
 		// TODO: activation
 		get_space()->soft_body_add_to_active_list(&active_list);
+
+		if (bounds != AABB()) {
+			initialize_shape(true);
+		}
 	}
 }
 
@@ -162,6 +172,38 @@ void SoftBodySW::update_visual_server(VisualServerHandler *p_visual_server_handl
 	p_visual_server_handler->set_aabb(bounds);
 }
 
+void SoftBodySW::update_bounds() {
+	AABB prev_bounds = bounds;
+	prev_bounds.grow_by(MOVE_COLLISION_THRESHOLD);
+
+	bounds = AABB();
+
+	const uint32_t nodes_count = nodes.size();
+	if (nodes_count == 0) {
+		deinitialize_shape();
+		return;
+	}
+
+	bool first = true;
+	bool moved = false;
+	for (uint32_t node_index = 0; node_index < nodes_count; ++node_index) {
+		const Node &node = nodes[node_index];
+		if (!prev_bounds.has_point(node.x)) {
+			moved = true;
+		}
+		if (first) {
+			bounds.position = node.x;
+			first = false;
+		} else {
+			bounds.expand_to(node.x);
+		}
+	}
+
+	if (get_space()) {
+		initialize_shape(moved);
+	}
+}
+
 void SoftBodySW::update_constants() {
 	reset_link_rest_lengths();
 	update_link_constants();
@@ -206,7 +248,7 @@ void SoftBodySW::apply_nodes_transform(const Transform &p_transform) {
 
 	// TODO: update more stuff
 	//updateNormals();
-	//updateBounds();
+	update_bounds();
 	update_constants();
 }
 
@@ -425,8 +467,10 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 	update_constants();
 	//m_bUpdateRtCst = true;
 
-	// TODO: update bounds.
 	// TODO: btSoftBodyHelpers::ReoptimizeLinkOrder
+	// TODO: update more stuff
+	//updateNormals();
+	update_bounds();
 
 	return true;
 }
@@ -690,9 +734,9 @@ void SoftBodySW::predict_motion(real_t p_delta) {
 		n.x += n.v * p_delta;
 		n.f = Vector3();
 	}
-	// Bounds.
-	// TODO bounds and tree update
-	//updateBounds();
+	// Bounds and tree update.
+	update_bounds();
+	// TODO tree update
 	// Nodes.
 	/*ATTRIBUTE_ALIGNED16(btDbvtVolume)
 	vol;
@@ -777,6 +821,9 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 		Node &n = nodes[i];
 		n.v += (n.x - n.q) * vcf;
 	}
+
+	// TODO: update more stuff
+	//updateNormals();
 }
 
 void SoftBodySW::p_solve_links(real_t kst, real_t ti) {
@@ -806,6 +853,26 @@ void SoftBodySW::v_solve_links(real_t kst) {
 	}
 }
 
+void SoftBodySW::initialize_shape(bool p_force_move) {
+	if (get_shape_count() == 0) {
+		SoftBodyShapeSW *soft_body_shape = memnew(SoftBodyShapeSW(this));
+		add_shape(soft_body_shape);
+		return;
+	}
+
+	if (p_force_move) {
+		_update_shapes();
+	}
+}
+
+void SoftBodySW::deinitialize_shape() {
+	if (get_shape_count() > 0) {
+		ShapeSW *shape = get_shape(0);
+		remove_shape(shape);
+		memdelete(shape);
+	}
+}
+
 void SoftBodySW::destroy() {
 	indices_table.clear();
 	map_visual_to_physics.clear();
@@ -813,4 +880,32 @@ void SoftBodySW::destroy() {
 	nodes.clear();
 	links.clear();
 	faces.clear();
+
+	bounds = AABB();
+	deinitialize_shape();
+}
+
+SoftBodyShapeSW::SoftBodyShapeSW(SoftBodySW *p_soft_body) {
+	ERR_FAIL_COND(!p_soft_body);
+
+	soft_body = p_soft_body;
+
+	AABB collision_aabb = p_soft_body->get_bounds();
+	collision_aabb.grow_by(COLLISION_MARGIN);
+	configure(collision_aabb);
+}
+
+bool SoftBodyShapeSW::intersect_segment(const Vector3 &p_begin, const Vector3 &p_end, Vector3 &r_result, Vector3 &r_normal) const {
+	// TODO: queries
+	return false;
+}
+
+bool SoftBodyShapeSW::intersect_point(const Vector3 &p_point) const {
+	// TODO: queries
+	return false;
+}
+
+Vector3 SoftBodyShapeSW::get_closest_point_to(const Vector3 &p_point) const {
+	// TODO: queries
+	return Vector3();
 }

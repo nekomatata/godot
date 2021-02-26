@@ -1041,23 +1041,29 @@ void *SpaceSW::_broadphase_pair(CollisionObjectSW *A, int p_subindex_A, Collisio
 	self->collision_pairs++;
 
 	if (type_A == CollisionObjectSW::TYPE_AREA) {
-
 		AreaSW *area = static_cast<AreaSW *>(A);
 		if (type_B == CollisionObjectSW::TYPE_AREA) {
-
 			AreaSW *area_b = static_cast<AreaSW *>(B);
 			Area2PairSW *area2_pair = memnew(Area2PairSW(area_b, p_subindex_B, area, p_subindex_A));
 			return area2_pair;
-		} else {
+		} else if (type_B == CollisionObjectSW::TYPE_SOFT_BODY) {
+			// TODO: Area/Soft Body
 
+		} else {
 			BodySW *body = static_cast<BodySW *>(B);
 			AreaPairSW *area_pair = memnew(AreaPairSW(body, p_subindex_B, area, p_subindex_A));
 			return area_pair;
 		}
+	} else if (type_A == CollisionObjectSW::TYPE_BODY) {
+		if (type_B == CollisionObjectSW::TYPE_SOFT_BODY) {
+			BodySoftPairSW *soft_pair = memnew(BodySoftPairSW((BodySW *)A, p_subindex_A, (SoftBodySW *)B));
+			return soft_pair;
+		} else {
+			BodyPairSW *b = memnew(BodyPairSW((BodySW *)A, p_subindex_A, (BodySW *)B, p_subindex_B));
+			return b;
+		}
 	} else {
-
-		BodyPairSW *b = memnew(BodyPairSW((BodySW *)A, p_subindex_A, (BodySW *)B, p_subindex_B));
-		return b;
+		// Soft Body/Soft Body, ignored.
 	}
 
 	return NULL;

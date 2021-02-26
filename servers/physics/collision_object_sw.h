@@ -83,9 +83,8 @@ private:
 
 	SelfList<CollisionObjectSW> pending_shape_update_list;
 
-	void _update_shapes();
-
 protected:
+	void _update_shapes();
 	void _update_shapes_with_motion(const Vector3 &p_motion);
 	void _unregister_shapes();
 

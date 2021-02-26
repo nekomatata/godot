@@ -152,6 +152,14 @@ void CollisionObjectSW::_update_shapes() {
 	for (int i = 0; i < shapes.size(); i++) {
 		Shape &s = shapes.write[i];
 
+		if (s.disabled) {
+			if (s.bpid != 0) {
+				space->get_broadphase()->remove(s.bpid);
+				s.bpid = 0;
+			}
+			continue;
+		}
+
 		//not quite correct, should compute the next matrix..
 		AABB shape_aabb = s.shape->get_aabb();
 		Transform xform = transform * s.xform;
@@ -177,6 +185,14 @@ void CollisionObjectSW::_update_shapes_with_motion(const Vector3 &p_motion) {
 
 	for (int i = 0; i < shapes.size(); i++) {
 		Shape &s = shapes.write[i];
+
+		if (s.disabled) {
+			if (s.bpid != 0) {
+				space->get_broadphase()->remove(s.bpid);
+				s.bpid = 0;
+			}
+			continue;
+		}
 
 		//not quite correct, should compute the next matrix..
 		AABB shape_aabb = s.shape->get_aabb();

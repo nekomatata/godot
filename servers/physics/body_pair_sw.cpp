@@ -49,21 +49,21 @@
 #define MIN_VELOCITY 0.0001
 #define MAX_BIAS_ROTATION (Math_PI / 8)
 
-void BodyPairSW::_contact_added_callback(const Vector3 &p_point_A, const Vector3 &p_point_B, void *p_userdata) {
+void BodyContactSW::_contact_added_callback(const Vector3 &p_point_A, const Vector3 &p_point_B, void *p_userdata) {
 
-	BodyPairSW *pair = (BodyPairSW *)p_userdata;
+	BodyContactSW *pair = (BodyContactSW *)p_userdata;
 	pair->contact_added_callback(p_point_A, p_point_B);
 }
 
-void BodyPairSW::contact_added_callback(const Vector3 &p_point_A, const Vector3 &p_point_B) {
+void BodyContactSW::contact_added_callback(const Vector3 &p_point_A, const Vector3 &p_point_B) {
 
 	// check if we already have the contact
 
 	//Vector3 local_A = A->get_inv_transform().xform(p_point_A);
 	//Vector3 local_B = B->get_inv_transform().xform(p_point_B);
 
-	Vector3 local_A = A->get_inv_transform().basis.xform(p_point_A);
-	Vector3 local_B = B->get_inv_transform().basis.xform(p_point_B - offset_B);
+	Vector3 local_A = get_object_a()->get_inv_transform().basis.xform(p_point_A);
+	Vector3 local_B = get_object_b()->get_inv_transform().basis.xform(p_point_B - offset_B);
 
 	int new_index = contact_count;
 
@@ -107,11 +107,14 @@ void BodyPairSW::contact_added_callback(const Vector3 &p_point_A, const Vector3 
 		int least_deep = -1;
 		real_t min_depth = 1e10;
 
+		const Transform &transform_A = get_object_a()->get_transform();
+		const Transform &transform_B = get_object_b()->get_transform();
+
 		for (int i = 0; i <= contact_count; i++) {
 
 			Contact &c = (i == contact_count) ? contact : contacts[i];
-			Vector3 global_A = A->get_transform().basis.xform(c.local_A);
-			Vector3 global_B = B->get_transform().basis.xform(c.local_B) + offset_B;
+			Vector3 global_A = transform_A.basis.xform(c.local_A);
+			Vector3 global_B = transform_B.basis.xform(c.local_B) + offset_B;
 
 			Vector3 axis = global_A - global_B;
 			real_t depth = axis.dot(c.normal);
@@ -141,17 +144,20 @@ void BodyPairSW::contact_added_callback(const Vector3 &p_point_A, const Vector3 
 	}
 }
 
-void BodyPairSW::validate_contacts() {
+void BodyContactSW::validate_contacts() {
 
 	//make sure to erase contacts that are no longer valid
+
+	const Transform &transform_A = get_object_a()->get_transform();
+	const Transform &transform_B = get_object_b()->get_transform();
 
 	real_t contact_max_separation = space->get_contact_max_separation();
 	for (int i = 0; i < contact_count; i++) {
 
 		Contact &c = contacts[i];
 
-		Vector3 global_A = A->get_transform().basis.xform(c.local_A);
-		Vector3 global_B = B->get_transform().basis.xform(c.local_B) + offset_B;
+		Vector3 global_A = transform_A.basis.xform(c.local_A);
+		Vector3 global_B = transform_B.basis.xform(c.local_B) + offset_B;
 		Vector3 axis = global_A - global_B;
 		real_t depth = axis.dot(c.normal);
 
@@ -475,7 +481,7 @@ void BodyPairSW::solve(real_t p_step) {
 }
 
 BodyPairSW::BodyPairSW(BodySW *p_A, int p_shape_A, BodySW *p_B, int p_shape_B) :
-		ConstraintSW(_arr, 2) {
+		BodyContactSW(_arr, 2) {
 
 	A = p_A;
 	B = p_B;
@@ -492,4 +498,28 @@ BodyPairSW::~BodyPairSW() {
 
 	A->remove_constraint(this);
 	B->remove_constraint(this);
+}
+
+bool BodySoftPairSW::setup(real_t p_step) {
+	return false;
+}
+
+void BodySoftPairSW::solve(real_t p_step) {
+
+}
+
+BodySoftPairSW::BodySoftPairSW(BodySW *p_A, int p_shape_A, SoftBodySW *p_B) {
+	body = p_A;
+	soft_body = p_B;
+	body_shape = p_shape_A;
+	space = p_A->get_space();
+	body->add_constraint(this, 0);
+	soft_body->add_constraint(this);
+	contact_count = 0;
+	collided = false;
+}
+
+BodySoftPairSW::~BodySoftPairSW() {
+	body->remove_constraint(this);
+	soft_body->remove_constraint(this);
 }
