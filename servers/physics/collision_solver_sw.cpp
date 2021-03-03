@@ -30,6 +30,7 @@
 
 #include "collision_solver_sw.h"
 #include "collision_solver_sat.h"
+#include "soft_body_sw.h"
 
 #include "gjk_epa.h"
 
@@ -79,9 +80,9 @@ bool CollisionSolverSW::solve_static_plane(const ShapeSW *p_shape_A, const Trans
 
 		if (p_result_callback) {
 			if (p_swap_result)
-				p_result_callback(supports[i], support_A, p_userdata);
+				p_result_callback(supports[i], 0, support_A, 0, p_userdata);
 			else
-				p_result_callback(support_A, supports[i], p_userdata);
+				p_result_callback(support_A, 0, supports[i], 0, p_userdata);
 		}
 	}
 
@@ -113,11 +114,63 @@ bool CollisionSolverSW::solve_ray(const ShapeSW *p_shape_A, const Transform &p_t
 
 	if (p_result_callback) {
 		if (p_swap_result)
-			p_result_callback(support_B, support_A, p_userdata);
+			p_result_callback(support_B, 0, support_A, 0, p_userdata);
 		else
-			p_result_callback(support_A, support_B, p_userdata);
+			p_result_callback(support_A, 0, support_B, 0, p_userdata);
 	}
 	return true;
+}
+
+struct _SoftBodyCollisionInfo {
+	int index_A = 0;
+	int index_B = 0;
+	CollisionSolverSW::CallbackResult result_callback;
+	void *userdata = nullptr;
+	bool swap_result = false;
+	int contact_count = 0;
+};
+
+void CollisionSolverSW::soft_body_contact_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
+	_SoftBodyCollisionInfo &cinfo = *(_SoftBodyCollisionInfo *)(p_userdata);
+
+	++cinfo.contact_count;
+
+	if (cinfo.swap_result) {
+		cinfo.result_callback(p_point_B, cinfo.index_B, p_point_A, cinfo.index_A, cinfo.userdata);
+	} else {
+		cinfo.result_callback(p_point_A, cinfo.index_A, p_point_B, cinfo.index_B, cinfo.userdata);
+	}
+}
+
+bool CollisionSolverSW::solve_soft_body(const ShapeSW *p_shape_A, const Transform &p_transform_A, const ShapeSW *p_shape_B, const Transform &p_transform_B, CallbackResult p_result_callback, void *p_userdata, bool p_swap_result) {
+	const SoftBodyShapeSW *soft_body_shape_B = static_cast<const SoftBodyShapeSW *>(p_shape_B);
+
+	const SoftBodySW *soft_body = soft_body_shape_B->get_soft_body();
+	const Transform &world_to_local = soft_body->get_inv_transform();
+
+	_SoftBodyCollisionInfo cinfo;
+	cinfo.result_callback = p_result_callback;
+	cinfo.userdata = p_userdata;
+	cinfo.swap_result = p_swap_result;
+
+	// Brute force
+	uint32_t node_count = soft_body->get_node_count();
+	for (uint32_t node_index = 0; node_index < node_count; ++node_index) {
+		Vector3 node_position = soft_body->get_node_position(node_index);
+		Vector3 node_local_position = world_to_local.xform(node_position);
+
+		Transform node_transform;
+		node_transform.origin = p_transform_B.xform(node_local_position);
+		//node_transform.origin = node_position;
+
+		SphereShapeSW sphere_shape;
+		sphere_shape.set_data(0.01);
+
+		cinfo.index_B = node_index;
+		solve_static(p_shape_A, p_transform_A, &sphere_shape, node_transform, soft_body_contact_callback, &cinfo);
+	}
+
+	return (cinfo.contact_count > 0);
 }
 
 struct _ConcaveCollisionInfo {
@@ -213,9 +266,13 @@ bool CollisionSolverSW::solve_static(const ShapeSW *p_shape_A, const Transform &
 
 	if (type_A == PhysicsServer::SHAPE_PLANE) {
 
-		if (type_B == PhysicsServer::SHAPE_PLANE)
+		if (type_B == PhysicsServer::SHAPE_PLANE) {
 			return false;
+		}
 		if (type_B == PhysicsServer::SHAPE_RAY) {
+			return false;
+		}
+		if (type_B == PhysicsServer::SHAPE_SOFT_BODY) {
 			return false;
 		}
 
@@ -227,13 +284,25 @@ bool CollisionSolverSW::solve_static(const ShapeSW *p_shape_A, const Transform &
 
 	} else if (type_A == PhysicsServer::SHAPE_RAY) {
 
-		if (type_B == PhysicsServer::SHAPE_RAY)
+		if (type_B == PhysicsServer::SHAPE_RAY) {
 			return false;
+		}
 
 		if (swap) {
 			return solve_ray(p_shape_B, p_transform_B, p_shape_A, p_transform_A, p_result_callback, p_userdata, true);
 		} else {
 			return solve_ray(p_shape_A, p_transform_A, p_shape_B, p_transform_B, p_result_callback, p_userdata, false);
+		}
+
+	} else if (type_B == PhysicsServer::SHAPE_SOFT_BODY) {
+		if (type_A == PhysicsServer::SHAPE_SOFT_BODY) {
+			return false;
+		}
+
+		if (swap) {
+			return solve_soft_body(p_shape_B, p_transform_B, p_shape_A, p_transform_A, p_result_callback, p_userdata, true);
+		} else {
+			return solve_soft_body(p_shape_A, p_transform_A, p_shape_B, p_transform_B, p_result_callback, p_userdata, false);
 		}
 
 	} else if (concave_B) {

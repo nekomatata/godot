@@ -152,6 +152,24 @@ void SoftBodyBullet::set_soft_transform(const Transform &p_transform) {
 	move_all_nodes(p_transform);
 }
 
+AABB SoftBodyBullet::get_bounds() const {
+	if (!bt_soft_body) {
+		return AABB();
+	}
+
+	btVector3 aabb_min;
+	btVector3 aabb_max;
+	bt_soft_body->getAabb(aabb_min, aabb_max);
+
+	btVector3 size(aabb_max - aabb_min);
+
+	AABB aabb;
+	B_TO_G(aabb_min, aabb.position);
+	B_TO_G(size, aabb.size);
+
+	return aabb;
+}
+
 void SoftBodyBullet::move_all_nodes(const Transform &p_transform) {
 	if (!bt_soft_body)
 		return;

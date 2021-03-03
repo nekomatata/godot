@@ -124,6 +124,8 @@ public:
 	void prepare_physics_server();
 	void become_mesh_owner();
 
+	RID get_physics_rid() const { return physics_rid; }
+
 	void set_collision_mask(uint32_t p_mask);
 	uint32_t get_collision_mask() const;
 

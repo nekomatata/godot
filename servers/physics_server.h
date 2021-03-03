@@ -250,6 +250,7 @@ public:
 		SHAPE_CONVEX_POLYGON, ///< array of planes:"planes"
 		SHAPE_CONCAVE_POLYGON, ///< vector3 array:"triangles" , or Dictionary with "indices" (int array) and "triangles" (Vector3 array)
 		SHAPE_HEIGHTMAP, ///< dict( int:"width", int:"depth",float:"cell_size", float_array:"heights"
+		SHAPE_SOFT_BODY, ///< Used internally, calling shape_create() with this value will result in an error
 		SHAPE_CUSTOM, ///< Server-Implementation based custom shape, calling shape_create() with this value will result in an error
 	};
 
@@ -534,6 +535,8 @@ public:
 	virtual RID soft_body_get_space(RID p_body) const = 0;
 
 	virtual void soft_body_set_mesh(RID p_body, const REF &p_mesh) = 0;
+
+	virtual AABB soft_body_get_bounds(RID p_body) const = 0;
 
 	virtual void soft_body_set_collision_layer(RID p_body, uint32_t p_layer) = 0;
 	virtual uint32_t soft_body_get_collision_layer(RID p_body) const = 0;

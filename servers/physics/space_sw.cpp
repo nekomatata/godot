@@ -388,7 +388,7 @@ struct _RestCallbackData {
 	real_t min_allowed_depth;
 };
 
-static void _rest_cbk_result(const Vector3 &p_point_A, const Vector3 &p_point_B, void *p_userdata) {
+static void _rest_cbk_result(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
 
 	_RestCallbackData *rd = (_RestCallbackData *)p_userdata;
 

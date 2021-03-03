@@ -930,6 +930,13 @@ void BulletPhysicsServer::soft_body_set_mesh(RID p_body, const REF &p_mesh) {
 	body->set_soft_mesh(p_mesh);
 }
 
+AABB BulletPhysicsServer::soft_body_get_bounds(RID p_body) const {
+	SoftBodyBullet *body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!body, AABB());
+
+	return body->get_bounds();
+}
+
 void BulletPhysicsServer::soft_body_set_collision_layer(RID p_body, uint32_t p_layer) {
 	SoftBodyBullet *body = soft_body_owner.get(p_body);
 	ERR_FAIL_COND(!body);

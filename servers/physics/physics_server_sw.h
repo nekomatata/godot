@@ -79,7 +79,7 @@ public:
 		Vector3 *ptr;
 	};
 
-	static void _shape_col_cbk(const Vector3 &p_point_A, const Vector3 &p_point_B, void *p_userdata);
+	static void _shape_col_cbk(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata);
 
 	virtual RID shape_create(ShapeType p_shape);
 	virtual void shape_set_data(RID p_shape, const Variant &p_data);
@@ -297,6 +297,8 @@ public:
 	virtual real_t soft_body_get_drag_coefficient(RID p_body) const;
 
 	virtual void soft_body_set_mesh(RID p_body, const REF &p_mesh);
+
+	virtual AABB soft_body_get_bounds(RID p_body) const;
 
 	virtual void soft_body_move_point(RID p_body, int p_point_index, const Vector3 &p_global_position);
 	virtual Vector3 soft_body_get_point_global_position(RID p_body, int p_point_index) const;

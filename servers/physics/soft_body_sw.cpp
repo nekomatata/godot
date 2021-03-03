@@ -51,7 +51,6 @@ SoftBodySW::SoftBodySW() :
 }
 
 void SoftBodySW::_shapes_changed() {
-	// TODO: inertia
 }
 
 void SoftBodySW::set_state(PhysicsServer::BodyState p_state, const Variant &p_variant) {
@@ -124,6 +123,7 @@ void SoftBodySW::set_space(SpaceSW *p_space) {
 
 		if (bounds != AABB()) {
 			initialize_shape(true);
+			update_inertia();
 		}
 	}
 }
@@ -201,7 +201,14 @@ void SoftBodySW::update_bounds() {
 
 	if (get_space()) {
 		initialize_shape(moved);
+		update_inertia();
 	}
+}
+
+void SoftBodySW::update_inertia() {
+	// TODO: check inertia and center of mass
+	center_of_mass = Vector3();
+	_inv_inertia_tensor.set_zero();
 }
 
 void SoftBodySW::update_constants() {
@@ -306,7 +313,7 @@ void SoftBodySW::unpin_vertex(int p_index) {
 				uint32_t node_index = map_visual_to_physics[p_index];
 
 				ERR_FAIL_INDEX(node_index, nodes.size());
-				real_t inv_node_mass = nodes.size() / total_mass;
+				real_t inv_node_mass = nodes.size() * inv_total_mass;
 
 				Node &node = nodes[node_index];
 				node.im = inv_node_mass;
@@ -319,7 +326,7 @@ void SoftBodySW::unpin_vertex(int p_index) {
 
 void SoftBodySW::unpin_all_vertices() {
 	if (!soft_mesh.is_null()) {
-		real_t inv_node_mass = nodes.size() / total_mass;
+		real_t inv_node_mass = nodes.size() * inv_total_mass;
 		size_t pinned_count = pinned_vertices.size();
 		for (uint32_t i = 0; i < pinned_count; ++i) {
 			uint32_t vertex_index = pinned_vertices[i];
@@ -345,6 +352,31 @@ bool SoftBodySW::is_vertex_pinned(int p_index) const {
 	}
 
 	return false;
+}
+
+uint32_t SoftBodySW::get_node_count() const {
+	return nodes.size();
+}
+
+real_t SoftBodySW::get_node_inv_mass(uint32_t p_node_index) const {
+	ERR_FAIL_INDEX_V(p_node_index, nodes.size(), 0.0);
+	return nodes[p_node_index].im;
+}
+
+Vector3 SoftBodySW::get_node_position(uint32_t p_node_index) const {
+	ERR_FAIL_INDEX_V(p_node_index, nodes.size(), Vector3());
+	return nodes[p_node_index].x;
+}
+
+Vector3 SoftBodySW::get_node_velocity(uint32_t p_node_index) const {
+	ERR_FAIL_INDEX_V(p_node_index, nodes.size(), Vector3());
+	return nodes[p_node_index].v;
+}
+
+void SoftBodySW::add_node_impulse(uint32_t p_node_index, const Vector3 &p_impulse) {
+	ERR_FAIL_INDEX(p_node_index, nodes.size());
+	Node &node = nodes[p_node_index];
+	node.v += p_impulse * node.im;
 }
 
 bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const PoolVector<Vector3> &p_vertices) {
@@ -412,7 +444,7 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 
 	// Create nodes from vertices.
 	nodes.resize(node_count);
-	real_t inv_node_mass = node_count / total_mass;
+	real_t inv_node_mass = node_count * inv_total_mass;
 	for (uint32_t i = 0; i < node_count; ++i) {
 		Node &node = nodes[i];
 		node.s = vertices[i];
@@ -430,6 +462,7 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 	// Create links and faces from triangles.
 	LocalVector<bool> chks;
 	chks.resize(node_count * node_count);
+	memset(chks.ptr(), 0, chks.size() * sizeof(bool));
 
 	for (uint32_t i = 0; i < triangle_count * 3; i += 3) {
 		const int idx[] = { triangles[i], triangles[i + 1], triangles[i + 2] };
@@ -632,7 +665,8 @@ void SoftBodySW::set_iteration_count(int p_val) {
 void SoftBodySW::set_total_mass(real_t p_val) {
 	ERR_FAIL_COND(p_val < 0.0);
 
-	real_t mass_factor = total_mass / p_val;
+	inv_total_mass = 1.0 / p_val;
+	real_t mass_factor = total_mass * inv_total_mass;
 	total_mass = p_val;
 
 	size_t node_count = nodes.size();

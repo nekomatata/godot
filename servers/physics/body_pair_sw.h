@@ -44,6 +44,7 @@ protected:
 	struct Contact {
 		Vector3 position;
 		Vector3 normal;
+		int index_A, index_B;
 		Vector3 local_A, local_B;
 		real_t acc_normal_impulse; // accumulated normal impulse (Pn)
 		Vector3 acc_tangent_impulse; // accumulated tangent impulse (Pt)
@@ -65,9 +66,9 @@ protected:
 	int contact_count;
 	bool collided;
 
-	static void _contact_added_callback(const Vector3 &p_point_A, const Vector3 &p_point_B, void *p_userdata);
+	static void _contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata);
 
-	void contact_added_callback(const Vector3 &p_point_A, const Vector3 &p_point_B);
+	void contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B);
 
 	void validate_contacts();
 

@@ -322,6 +322,8 @@ void SoftBody::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("_draw_soft_mesh"), &SoftBody::_draw_soft_mesh);
 
+	ClassDB::bind_method(D_METHOD("get_physics_rid"), &SoftBody::get_physics_rid);
+
 	ClassDB::bind_method(D_METHOD("set_collision_mask", "collision_mask"), &SoftBody::set_collision_mask);
 	ClassDB::bind_method(D_METHOD("get_collision_mask"), &SoftBody::get_collision_mask);
 

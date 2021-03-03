@@ -86,6 +86,11 @@ RID PhysicsServerSW::shape_create(ShapeType p_shape) {
 
 			shape = memnew(HeightMapShapeSW);
 		} break;
+		case SHAPE_SOFT_BODY: {
+
+			ERR_FAIL_V(RID());
+
+		} break;
 		case SHAPE_CUSTOM: {
 
 			ERR_FAIL_V(RID());
@@ -1261,6 +1266,13 @@ void PhysicsServerSW::soft_body_set_mesh(RID p_body, const REF &p_mesh) {
 	soft_body->set_mesh(p_mesh);
 }
 
+AABB PhysicsServerSW::soft_body_get_bounds(RID p_body) const {
+	SoftBodySW *soft_body = soft_body_owner.get(p_body);
+	ERR_FAIL_COND_V(!soft_body, AABB());
+
+	return soft_body->get_bounds();
+}
+
 void PhysicsServerSW::soft_body_move_point(RID p_body, int p_point_index, const Vector3 &p_global_position) {
 	SoftBodySW *soft_body = soft_body_owner.get(p_body);
 	ERR_FAIL_COND(!soft_body);
@@ -1852,7 +1864,7 @@ void PhysicsServerSW::_update_shapes() {
 	}
 }
 
-void PhysicsServerSW::_shape_col_cbk(const Vector3 &p_point_A, const Vector3 &p_point_B, void *p_userdata) {
+void PhysicsServerSW::_shape_col_cbk(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
 
 	CollCbkData *cbk = (CollCbkData *)p_userdata;
 

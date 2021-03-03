@@ -87,8 +87,12 @@ class SoftBodySW : public CollisionObjectSW {
 
 	AABB bounds;
 
-	int iteration_count = 5;
 	real_t total_mass = 1.0;
+	real_t inv_total_mass = 1.0;
+	Vector3 center_of_mass;
+	Basis _inv_inertia_tensor;
+
+	int iteration_count = 5;
 	real_t linear_stiffness = 0.5; // [0,1]
 	real_t angular_stiffness = 0.5; // [0,1]
 	real_t volume_stiffness = 0.5; // [0,1]
@@ -101,9 +105,6 @@ class SoftBodySW : public CollisionObjectSW {
 	SelfList<SoftBodySW> active_list;
 
 	Set<ConstraintSW *> constraints;
-
-protected:
-	virtual void _shapes_changed();
 
 public:
 	SoftBodySW();
@@ -132,11 +133,21 @@ public:
 	void unpin_all_vertices();
 	bool is_vertex_pinned(int p_index) const;
 
+	uint32_t get_node_count() const;
+	real_t get_node_inv_mass(uint32_t p_node_index) const;
+	Vector3 get_node_position(uint32_t p_node_index) const;
+	Vector3 get_node_velocity(uint32_t p_node_index) const;
+	void add_node_impulse(uint32_t p_node_index, const Vector3 &p_impulse);
+
 	void set_iteration_count(int p_val);
 	_FORCE_INLINE_ real_t get_iteration_count() const { return iteration_count; }
 
 	void set_total_mass(real_t p_val);
 	_FORCE_INLINE_ real_t get_total_mass() const { return total_mass; }
+	_FORCE_INLINE_ real_t get_total_inv_mass() const { return inv_total_mass; }
+
+	_FORCE_INLINE_ const Vector3 &get_center_of_mass() const { return center_of_mass; }
+	_FORCE_INLINE_ const Basis &get_inv_inertia_tensor() const { return _inv_inertia_tensor; }
 
 	void set_linear_stiffness(real_t p_val);
 	_FORCE_INLINE_ real_t get_linear_stiffness() const { return linear_stiffness; }
@@ -162,8 +173,12 @@ public:
 	void predict_motion(real_t p_delta);
 	void solve_constraints(real_t p_delta);
 
+protected:
+	virtual void _shapes_changed();
+
 private:
 	void update_bounds();
+	void update_inertia();
 	void update_constants();
 	void reset_link_rest_lengths();
 	void update_link_constants();
@@ -193,7 +208,7 @@ class SoftBodyShapeSW : public ShapeSW {
 public:
 	SoftBodySW *get_soft_body() const { return soft_body; }
 
-	virtual PhysicsServer::ShapeType get_type() const { return PhysicsServer::SHAPE_CUSTOM; }
+	virtual PhysicsServer::ShapeType get_type() const { return PhysicsServer::SHAPE_SOFT_BODY; }
 	virtual void project_range(const Vector3 &p_normal, const Transform &p_transform, real_t &r_min, real_t &r_max) const { r_min = r_max = 0.0; }
 	virtual Vector3 get_support(const Vector3 &p_normal) const { return Vector3(); }
 	virtual void get_supports(const Vector3 &p_normal, int p_max, Vector3 *r_supports, int &r_amount, FeatureType &r_type) const { r_amount = 0; }

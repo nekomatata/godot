@@ -527,6 +527,8 @@ void PhysicsServer::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("body_get_direct_state", "body"), &PhysicsServer::body_get_direct_state);
 
+	ClassDB::bind_method(D_METHOD("soft_body_get_bounds", "body"), &PhysicsServer::soft_body_get_bounds);
+
 	/* JOINT API */
 
 	BIND_ENUM_CONSTANT(JOINT_PIN);
@@ -660,6 +662,7 @@ void PhysicsServer::_bind_methods() {
 	BIND_ENUM_CONSTANT(SHAPE_CONVEX_POLYGON);
 	BIND_ENUM_CONSTANT(SHAPE_CONCAVE_POLYGON);
 	BIND_ENUM_CONSTANT(SHAPE_HEIGHTMAP);
+	BIND_ENUM_CONSTANT(SHAPE_SOFT_BODY);
 	BIND_ENUM_CONSTANT(SHAPE_CUSTOM);
 
 	BIND_ENUM_CONSTANT(AREA_PARAM_GRAVITY);
