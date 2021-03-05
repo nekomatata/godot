@@ -247,6 +247,7 @@ void SoftBodySW::apply_nodes_transform(const Transform &p_transform) {
 		node.x = p_transform.xform(node.x);
 		node.q = node.x;
 		node.v = Vector3();
+		node.bv = Vector3();
 		node.f = Vector3();
 
 		// TODO: node tree
@@ -373,10 +374,21 @@ Vector3 SoftBodySW::get_node_velocity(uint32_t p_node_index) const {
 	return nodes[p_node_index].v;
 }
 
-void SoftBodySW::add_node_impulse(uint32_t p_node_index, const Vector3 &p_impulse) {
+Vector3 SoftBodySW::get_node_biased_velocity(uint32_t p_node_index) const {
+	ERR_FAIL_INDEX_V(p_node_index, nodes.size(), Vector3());
+	return nodes[p_node_index].bv;
+}
+
+void SoftBodySW::apply_node_impulse(uint32_t p_node_index, const Vector3 &p_impulse) {
 	ERR_FAIL_INDEX(p_node_index, nodes.size());
 	Node &node = nodes[p_node_index];
 	node.v += p_impulse * node.im;
+}
+
+void SoftBodySW::apply_node_bias_impulse(uint32_t p_node_index, const Vector3 &p_impulse) {
+	ERR_FAIL_INDEX(p_node_index, nodes.size());
+	Node &node = nodes[p_node_index];
+	node.bv += p_impulse * node.im;
 }
 
 bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const PoolVector<Vector3> &p_vertices) {
@@ -765,7 +777,9 @@ void SoftBodySW::predict_motion(real_t p_delta) {
 			}
 		}
 		n.v += deltaV;*/
+		//n.v += n.bv;
 		n.x += n.v * p_delta;
+		//n.bv = Vector3();
 		n.f = Vector3();
 	}
 	// Bounds and tree update.
@@ -824,6 +838,7 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 	}*/
 	for (i = 0, ni = nodes.size(); i < ni; ++i) {
 		Node &n = nodes[i];
+		//n.x = n.q + (n.v + n.bv) * p_delta;
 		n.x = n.q + n.v * p_delta;
 	}
 
@@ -836,16 +851,18 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 	const real_t vc = (1.0 - damping_coefficient) / p_delta;
 	for (i = 0, ni = nodes.size(); i < ni; ++i) {
 		Node &n = nodes[i];
+
+		n.x += n.bv * p_delta;
+		n.bv = Vector3();
+
 		n.v = (n.x - n.q) * vc;
 		n.f = Vector3();
+
+		n.q = n.x;
 	}
 
 	// Solve drift.
 	const real_t vcf = inv_delta;
-	for (i = 0, ni = nodes.size(); i < ni; ++i) {
-		Node &n = nodes[i];
-		n.q = n.x;
-	}
 	/*for (uint32_t idrift = 0; idrift < iteration_count; ++idrift) {
 		for (int iseq = 0; iseq < m_cfg.m_dsequence.size(); ++iseq) {
 			getSolver(m_cfg.m_dsequence[iseq])(this, 1, 0);
@@ -891,11 +908,9 @@ void SoftBodySW::initialize_shape(bool p_force_move) {
 	if (get_shape_count() == 0) {
 		SoftBodyShapeSW *soft_body_shape = memnew(SoftBodyShapeSW(this));
 		add_shape(soft_body_shape);
-		return;
-	}
-
-	if (p_force_move) {
-		_update_shapes();
+	} else if (p_force_move) {
+		SoftBodyShapeSW *soft_body_shape = static_cast<SoftBodyShapeSW *>(get_shape(0));
+		soft_body_shape->update_bounds();
 	}
 }
 
@@ -919,14 +934,17 @@ void SoftBodySW::destroy() {
 	deinitialize_shape();
 }
 
-SoftBodyShapeSW::SoftBodyShapeSW(SoftBodySW *p_soft_body) {
-	ERR_FAIL_COND(!p_soft_body);
+void SoftBodyShapeSW::update_bounds() {
+	ERR_FAIL_COND(!soft_body);
 
-	soft_body = p_soft_body;
-
-	AABB collision_aabb = p_soft_body->get_bounds();
+	AABB collision_aabb = soft_body->get_bounds();
 	collision_aabb.grow_by(COLLISION_MARGIN);
 	configure(collision_aabb);
+}
+
+SoftBodyShapeSW::SoftBodyShapeSW(SoftBodySW *p_soft_body) {
+	soft_body = p_soft_body;
+	update_bounds();
 }
 
 bool SoftBodyShapeSW::intersect_segment(const Vector3 &p_begin, const Vector3 &p_end, Vector3 &r_result, Vector3 &r_normal) const {

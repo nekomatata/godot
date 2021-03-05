@@ -121,17 +121,17 @@ bool CollisionSolverSW::solve_ray(const ShapeSW *p_shape_A, const Transform &p_t
 	return true;
 }
 
-struct _SoftBodyCollisionInfo {
+struct _SoftBodyContactCollisionInfo {
 	int index_A = 0;
 	int index_B = 0;
-	CollisionSolverSW::CallbackResult result_callback;
+	CollisionSolverSW::CallbackResult result_callback = nullptr;
 	void *userdata = nullptr;
 	bool swap_result = false;
 	int contact_count = 0;
 };
 
 void CollisionSolverSW::soft_body_contact_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
-	_SoftBodyCollisionInfo &cinfo = *(_SoftBodyCollisionInfo *)(p_userdata);
+	_SoftBodyContactCollisionInfo &cinfo = *(_SoftBodyContactCollisionInfo *)(p_userdata);
 
 	++cinfo.contact_count;
 
@@ -148,7 +148,7 @@ bool CollisionSolverSW::solve_soft_body(const ShapeSW *p_shape_A, const Transfor
 	const SoftBodySW *soft_body = soft_body_shape_B->get_soft_body();
 	const Transform &world_to_local = soft_body->get_inv_transform();
 
-	_SoftBodyCollisionInfo cinfo;
+	_SoftBodyContactCollisionInfo cinfo;
 	cinfo.result_callback = p_result_callback;
 	cinfo.userdata = p_userdata;
 	cinfo.swap_result = p_swap_result;
@@ -173,6 +173,28 @@ bool CollisionSolverSW::solve_soft_body(const ShapeSW *p_shape_A, const Transfor
 	return (cinfo.contact_count > 0);
 }
 
+struct _ConcaveContactCollisionInfo {
+	CollisionSolverSW::CallbackResult result_callback = nullptr;
+	void *userdata = nullptr;
+	FaceShapeSW *face_shape = nullptr;
+	bool swap_result = false;
+	bool collided = false;
+};
+
+void CollisionSolverSW::concave_contact_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
+
+	_ConcaveContactCollisionInfo &cinfo = *(_ConcaveContactCollisionInfo *)(p_userdata);
+
+	if ((p_point_B - p_point_A).dot(cinfo.face_shape->normal) >= 0.0) {
+		cinfo.collided = true;
+		if (cinfo.swap_result) {
+			cinfo.result_callback(p_point_B, p_index_B, p_point_A, p_index_A, cinfo.userdata);
+		} else {
+			cinfo.result_callback(p_point_A, p_index_A, p_point_B, p_index_B, cinfo.userdata);
+		}
+	}
+}
+
 struct _ConcaveCollisionInfo {
 
 	const Transform *transform_A;
@@ -190,17 +212,23 @@ struct _ConcaveCollisionInfo {
 	Vector3 close_A, close_B;
 };
 
-void CollisionSolverSW::concave_callback(void *p_userdata, ShapeSW *p_convex) {
+void CollisionSolverSW::concave_callback(void *p_userdata, FaceShapeSW *p_face_shape) {
 
 	_ConcaveCollisionInfo &cinfo = *(_ConcaveCollisionInfo *)(p_userdata);
 	cinfo.aabb_tests++;
 
-	bool collided = collision_solver(cinfo.shape_A, *cinfo.transform_A, p_convex, *cinfo.transform_B, cinfo.result_callback, cinfo.userdata, cinfo.swap_result, NULL, cinfo.margin_A, cinfo.margin_B);
-	if (!collided)
-		return;
+	_ConcaveContactCollisionInfo contact_cinfo;
+	contact_cinfo.result_callback = cinfo.result_callback;
+	contact_cinfo.userdata = cinfo.userdata;
+	contact_cinfo.swap_result = cinfo.swap_result;
+	contact_cinfo.face_shape = p_face_shape;
 
-	cinfo.collided = true;
-	cinfo.collisions++;
+	collision_solver(cinfo.shape_A, *cinfo.transform_A, p_face_shape, *cinfo.transform_B, concave_contact_callback, &contact_cinfo, false, NULL, cinfo.margin_A, cinfo.margin_B);
+
+	if (contact_cinfo.collided) {
+		cinfo.collided = true;
+		cinfo.collisions++;
+	}
 }
 
 bool CollisionSolverSW::solve_concave(const ShapeSW *p_shape_A, const Transform &p_transform_A, const ShapeSW *p_shape_B, const Transform &p_transform_B, CallbackResult p_result_callback, void *p_userdata, bool p_swap_result, real_t p_margin_A, real_t p_margin_B) {
@@ -243,6 +271,8 @@ bool CollisionSolverSW::solve_concave(const ShapeSW *p_shape_A, const Transform 
 		local_aabb.position[i] = smin;
 		local_aabb.size[i] = smax - smin;
 	}
+
+	local_aabb.grow_by(1.0);
 
 	concave_B->cull(local_aabb, concave_callback, &cinfo);
 
@@ -321,7 +351,7 @@ bool CollisionSolverSW::solve_static(const ShapeSW *p_shape_A, const Transform &
 	}
 }
 
-void CollisionSolverSW::concave_distance_callback(void *p_userdata, ShapeSW *p_convex) {
+void CollisionSolverSW::concave_distance_callback(void *p_userdata, FaceShapeSW *p_face_shape) {
 
 	_ConcaveCollisionInfo &cinfo = *(_ConcaveCollisionInfo *)(p_userdata);
 	cinfo.aabb_tests++;
@@ -329,7 +359,7 @@ void CollisionSolverSW::concave_distance_callback(void *p_userdata, ShapeSW *p_c
 		return;
 
 	Vector3 close_A, close_B;
-	cinfo.collided = !gjk_epa_calculate_distance(cinfo.shape_A, *cinfo.transform_A, p_convex, *cinfo.transform_B, close_A, close_B);
+	cinfo.collided = !gjk_epa_calculate_distance(cinfo.shape_A, *cinfo.transform_A, p_face_shape, *cinfo.transform_B, close_A, close_B);
 
 	if (cinfo.collided)
 		return;

@@ -516,8 +516,6 @@ bool BodySoftPairSW::setup(real_t p_step) {
 	offset_B = soft_body->get_transform().get_origin() - body->get_transform().get_origin();
 	//offset_B = Vector3();
 
-	validate_contacts();
-
 	Vector3 offset_A = body->get_transform().get_origin();
 	//Transform xform_Au = body->get_transform();
 	Transform xform_Au = Transform(body->get_transform().basis, Vector3());
@@ -527,6 +525,18 @@ bool BodySoftPairSW::setup(real_t p_step) {
 	xform_Bu.origin -= offset_A;
 	Transform xform_B = xform_Bu * soft_body->get_shape_transform(0);
 	//Transform xform_B = Transform();
+
+	// Update previous contacts from node positions.
+	/*Transform inv_xform_Bu = xform_Bu.inverse();
+	for (int i = 0; i < contact_count; i++) {
+		Contact &c = contacts[i];
+		c.local_B = inv_xform_Bu.xform(soft_body->get_node_position(c.index_B));
+	}
+
+	validate_contacts();*/
+
+	// Invalidate previous contacts.
+	contact_count = 0;
 
 	ShapeSW *shape_A_ptr = body->get_shape(body_shape);
 	ShapeSW *shape_B_ptr = soft_body->get_shape(0);
@@ -557,6 +567,11 @@ bool BodySoftPairSW::setup(real_t p_step) {
 		Contact &c = contacts[i];
 		c.active = false;
 
+		real_t node_inv_mass = soft_body->get_node_inv_mass(c.index_B);
+		if (node_inv_mass == 0.0) {
+			continue;
+		}
+
 		Vector3 global_A = xform_Au.xform(c.local_A);
 		Vector3 global_B = xform_Bu.xform(c.local_B);
 		//const Vector3 &global_B = c.local_B;
@@ -564,7 +579,6 @@ bool BodySoftPairSW::setup(real_t p_step) {
 		real_t depth = c.normal.dot(global_A - global_B);
 
 		if (depth <= 0) {
-			c.active = false;
 			continue;
 		}
 
@@ -588,12 +602,10 @@ bool BodySoftPairSW::setup(real_t p_step) {
 			body->add_contact(global_A, -c.normal, depth, body_shape, global_B, 0, soft_body->get_instance_id(), soft_body->get_self(), crA);
 		}
 
-		c.active = true;
-
 		// Precompute normal mass, tangent mass, and bias.
 		Vector3 inertia_A = body->get_inv_inertia_tensor().xform(c.rA.cross(c.normal));
 		Vector3 inertia_B = soft_body->get_inv_inertia_tensor().xform(c.rB.cross(c.normal));
-		real_t kNormal = body->get_inv_mass() + soft_body->get_node_inv_mass(c.index_B);
+		real_t kNormal = body->get_inv_mass() + node_inv_mass;
 		kNormal += c.normal.dot(inertia_A.cross(c.rA)) + c.normal.dot(inertia_B.cross(c.rB));
 		c.mass_normal = 1.0f / kNormal;
 
@@ -602,7 +614,7 @@ bool BodySoftPairSW::setup(real_t p_step) {
 
 		Vector3 j_vec = c.normal * c.acc_normal_impulse + c.acc_tangent_impulse;
 		body->apply_impulse(c.rA + body->get_center_of_mass(), -j_vec);
-		soft_body->add_node_impulse(c.index_B, j_vec);
+		soft_body->apply_node_impulse(c.index_B, j_vec);
 		//B->apply_impulse(c.rB + B->get_center_of_mass(), j_vec);
 		c.acc_bias_impulse = 0;
 		c.acc_bias_impulse_center_of_mass = 0;
@@ -641,7 +653,7 @@ void BodySoftPairSW::solve(real_t p_step) {
 		Vector3 crbA = body->get_biased_angular_velocity().cross(c.rA);
 		//Vector3 crbB = B->get_biased_angular_velocity().cross(c.rB);
 		//Vector3 dbv = B->get_biased_linear_velocity() + crbB - A->get_biased_linear_velocity() - crbA;
-		Vector3 dbv = soft_body->get_node_velocity(c.index_B) - body->get_biased_linear_velocity() - crbA;
+		Vector3 dbv = soft_body->get_node_biased_velocity(c.index_B) - body->get_biased_linear_velocity() - crbA;
 
 		real_t vbn = dbv.dot(c.normal);
 
@@ -654,12 +666,13 @@ void BodySoftPairSW::solve(real_t p_step) {
 			Vector3 jb = c.normal * (c.acc_bias_impulse - jbnOld);
 
 			body->apply_bias_impulse(c.rA + body->get_center_of_mass(), -jb, MAX_BIAS_ROTATION / p_step);
+			soft_body->apply_node_bias_impulse(c.index_B, jb);
 			//B->apply_bias_impulse(c.rB + B->get_center_of_mass(), jb, MAX_BIAS_ROTATION / p_step);
 
 			crbA = body->get_biased_angular_velocity().cross(c.rA);
 			//crbB = B->get_biased_angular_velocity().cross(c.rB);
 			//dbv = B->get_biased_linear_velocity() + crbB - A->get_biased_linear_velocity() - crbA;
-			dbv = soft_body->get_node_velocity(c.index_B) - body->get_biased_linear_velocity() - crbA;
+			dbv = soft_body->get_node_biased_velocity(c.index_B) - body->get_biased_linear_velocity() - crbA;
 
 			vbn = dbv.dot(c.normal);
 
@@ -672,6 +685,7 @@ void BodySoftPairSW::solve(real_t p_step) {
 				Vector3 jb_com = c.normal * (c.acc_bias_impulse_center_of_mass - jbnOld_com);
 
 				body->apply_bias_impulse(body->get_center_of_mass(), -jb_com, 0.0f);
+				soft_body->apply_node_bias_impulse(c.index_B, -jb_com);
 				//B->apply_bias_impulse(B->get_center_of_mass(), jb_com, 0.0f);
 			}
 
@@ -695,7 +709,7 @@ void BodySoftPairSW::solve(real_t p_step) {
 			Vector3 j = c.normal * (c.acc_normal_impulse - jnOld);
 
 			body->apply_impulse(c.rA + body->get_center_of_mass(), -j);
-			soft_body->add_node_impulse(c.index_B, j);
+			soft_body->apply_node_impulse(c.index_B, j);
 			//B->apply_impulse(c.rB + B->get_center_of_mass(), j);
 
 			c.active = true;
@@ -743,7 +757,7 @@ void BodySoftPairSW::solve(real_t p_step) {
 			jt = c.acc_tangent_impulse - jtOld;
 
 			body->apply_impulse(c.rA + body->get_center_of_mass(), -jt);
-			soft_body->add_node_impulse(c.index_B, jt);
+			soft_body->apply_node_impulse(c.index_B, jt);
 			//B->apply_impulse(c.rB + B->get_center_of_mass(), jt);
 
 			c.active = true;

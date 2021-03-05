@@ -48,6 +48,7 @@ class SoftBodySW : public CollisionObjectSW {
 		Vector3 s; // Source position
 		Vector3 x; // Position
 		Vector3 q; // Previous step position/Test position
+		Vector3 bv; // Biased Velocity
 		Vector3 v; // Velocity
 		Vector3 vsplit; // Temporary Velocity in addintion to velocity used in split impulse
 		Vector3 vn; // Previous step velocity
@@ -137,7 +138,9 @@ public:
 	real_t get_node_inv_mass(uint32_t p_node_index) const;
 	Vector3 get_node_position(uint32_t p_node_index) const;
 	Vector3 get_node_velocity(uint32_t p_node_index) const;
-	void add_node_impulse(uint32_t p_node_index, const Vector3 &p_impulse);
+	Vector3 get_node_biased_velocity(uint32_t p_node_index) const;
+	void apply_node_impulse(uint32_t p_node_index, const Vector3 &p_impulse);
+	void apply_node_bias_impulse(uint32_t p_node_index, const Vector3 &p_impulse);
 
 	void set_iteration_count(int p_val);
 	_FORCE_INLINE_ real_t get_iteration_count() const { return iteration_count; }
@@ -220,6 +223,8 @@ public:
 
 	virtual void set_data(const Variant &p_data) {}
 	virtual Variant get_data() const { return Variant(); }
+
+	void update_bounds();
 
 	SoftBodyShapeSW(SoftBodySW *p_soft_body);
 	~SoftBodyShapeSW() {}

@@ -38,7 +38,7 @@
 class BodyContactSW : public ConstraintSW {
 protected:
 	enum {
-		MAX_CONTACTS = 4
+		MAX_CONTACTS = 16
 	};
 
 	struct Contact {
