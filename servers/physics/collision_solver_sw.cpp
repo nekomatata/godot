@@ -185,7 +185,12 @@ void CollisionSolverSW::concave_contact_callback(const Vector3 &p_point_A, int p
 
 	_ConcaveContactCollisionInfo &cinfo = *(_ConcaveContactCollisionInfo *)(p_userdata);
 
-	if ((p_point_B - p_point_A).dot(cinfo.face_shape->normal) >= 0.0) {
+	if ((p_point_B - p_point_A).dot(cinfo.face_shape->normal) < 0.0) {
+		return;
+	}
+
+	//if ((p_point_B - p_point_A).dot(cinfo.face_shape->normal) >= 0.0) {
+	{
 		cinfo.collided = true;
 		if (cinfo.swap_result) {
 			cinfo.result_callback(p_point_B, p_index_B, p_point_A, p_index_A, cinfo.userdata);

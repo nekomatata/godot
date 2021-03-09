@@ -643,7 +643,7 @@ public:
 			return true;
 	}
 
-	_FORCE_INLINE_ bool test_axis(const Vector3 &p_axis) {
+	_FORCE_INLINE_ bool test_axis(const Vector3 &p_axis, bool p_directional = false) {
 
 		Vector3 axis = p_axis;
 
@@ -680,7 +680,12 @@ public:
 		//use the smallest depth
 
 		if (min_B < 0.0) { // could be +0.0, we don't want it to become -0.0
-			min_B = -min_B;
+			if (p_directional) {
+				min_B = max_B;
+				axis = -axis;
+			} else {
+				min_B = -min_B;
+			}
 		}
 
 		if (max_B < min_B) {
@@ -1019,23 +1024,31 @@ static void _collision_sphere_face(const ShapeSW *p_a, const Transform &p_transf
 		p_transform_b.xform(face_B->vertex[2]),
 	};
 
-	if (!separator.test_axis((vertex[0] - vertex[2]).cross(vertex[0] - vertex[1]).normalized()))
+	Vector3 normal = (vertex[0] - vertex[2]).cross(vertex[0] - vertex[1]).normalized();
+
+	if (!separator.test_axis(normal, true))
 		return;
 
 	// edges and points of B
 	for (int i = 0; i < 3; i++) {
 
 		Vector3 n1 = vertex[i] - p_transform_a.origin;
+		if (n1.dot(normal) < 0.0) {
+			n1 *= -1.0;
+		}
 
-		if (!separator.test_axis(n1.normalized())) {
+		if (!separator.test_axis(n1.normalized(), true)) {
 			return;
 		}
 
 		Vector3 n2 = vertex[(i + 1) % 3] - vertex[i];
 
 		Vector3 axis = n1.cross(n2).cross(n2).normalized();
+		if (axis.dot(normal) < 0.0) {
+			axis *= -1.0;
+		}
 
-		if (!separator.test_axis(axis)) {
+		if (!separator.test_axis(axis, true)) {
 			return;
 		}
 	}
