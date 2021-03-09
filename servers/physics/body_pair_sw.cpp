@@ -49,13 +49,13 @@
 #define MIN_VELOCITY 0.0001
 #define MAX_BIAS_ROTATION (Math_PI / 8)
 
-void BodyContactSW::_contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
+void BodyPairSW::_contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
 
-	BodyContactSW *pair = (BodyContactSW *)p_userdata;
+	BodyPairSW *pair = (BodyPairSW *)p_userdata;
 	pair->contact_added_callback(p_point_A, p_index_A, p_point_B, p_index_B);
 }
 
-void BodyContactSW::contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B) {
+void BodyPairSW::contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B) {
 
 	// check if we already have the contact
 
@@ -145,7 +145,7 @@ void BodyContactSW::contact_added_callback(const Vector3 &p_point_A, int p_index
 	}
 }
 
-void BodyContactSW::validate_contacts() {
+void BodyPairSW::validate_contacts() {
 
 	//make sure to erase contacts that are no longer valid
 
@@ -501,27 +501,80 @@ BodyPairSW::~BodyPairSW() {
 	B->remove_constraint(this);
 }
 
-void BodySoftPairSW::_soft_contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
-	BodySoftPairSW *pair = (BodySoftPairSW *)p_userdata;
-	pair->soft_contact_added_callback(p_point_A, p_index_A, p_point_B, p_index_B);
+void BodySoftBodyPairSW::_contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
+	BodySoftBodyPairSW *pair = (BodySoftBodyPairSW *)p_userdata;
+	pair->contact_added_callback(p_point_A, p_index_A, p_point_B, p_index_B);
 }
 
-void BodySoftPairSW::soft_contact_added_callback(const Vector3& p_point_A, int p_index_A, const Vector3& p_point_B, int p_index_B) {
-	Vector3 local_A = get_object_a()->get_inv_transform().basis.xform(p_point_A);
-	Vector3 local_B = get_object_b()->get_inv_transform().basis.xform(p_point_B - offset_B);
+void BodySoftBodyPairSW::contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B) {
+	Vector3 local_A = get_object_a()->get_inv_transform().xform(p_point_A);
+	Vector3 local_B = p_point_B - soft_body->get_node_position(p_index_B);
 
-	SoftContact contact;
+	Contact contact;
 	contact.index_A = p_index_A;
 	contact.index_B = p_index_B;
+	contact.acc_normal_impulse = 0;
+	contact.acc_bias_impulse = 0;
+	contact.acc_bias_impulse_center_of_mass = 0;
+	contact.acc_tangent_impulse = Vector3();
 	contact.local_A = local_A;
 	contact.local_B = local_B;
 	contact.normal = (p_point_A - p_point_B).normalized();
+	contact.mass_normal = 0;
 
-	soft_contacts.push_back(contact);
+	// Attempt to determine if the contact will be reused.
+	real_t contact_recycle_radius = space->get_contact_recycle_radius();
+
+	uint32_t contact_count = contacts.size();
+	for (uint32_t contact_index = 0; contact_index < contact_count; ++contact_index) {
+		Contact &c = contacts[contact_index];
+		if (c.index_B == p_index_B) {
+			if (c.local_A.distance_squared_to(local_A) < (contact_recycle_radius * contact_recycle_radius) &&
+					c.local_B.distance_squared_to(local_B) < (contact_recycle_radius * contact_recycle_radius)) {
+				contact.acc_normal_impulse = c.acc_normal_impulse;
+				contact.acc_bias_impulse = c.acc_bias_impulse;
+				contact.acc_bias_impulse_center_of_mass = c.acc_bias_impulse_center_of_mass;
+				contact.acc_tangent_impulse = c.acc_tangent_impulse;
+			}
+			c = contact;
+			return;
+		}
+	}
+
+	contacts.push_back(contact);
 }
 
-bool BodySoftPairSW::setup(real_t p_step) {
-	//cannot collide
+void BodySoftBodyPairSW::validate_contacts() {
+	// Make sure to erase contacts that are no longer valid.
+	const Transform &transform_A = get_object_a()->get_transform();
+
+	real_t contact_max_separation = space->get_contact_max_separation();
+
+	uint32_t contact_count = contacts.size();
+	for (uint32_t contact_index = 0; contact_index < contact_count; ++contact_index) {
+		Contact &c = contacts[contact_index];
+
+		Vector3 global_A = transform_A.xform(c.local_A);
+		Vector3 global_B = soft_body->get_node_position(c.index_B) + c.local_B;
+		Vector3 axis = global_A - global_B;
+		real_t depth = axis.dot(c.normal);
+
+		if (depth < -contact_max_separation || (global_B + c.normal * depth - global_A).length() > contact_max_separation) {
+			// Contact no longer needed, remove.
+			if ((contact_index + 1) < contact_count) {
+				// Swap with the last one.
+				SWAP(c, contacts[contact_count - 1]);
+			}
+
+			contact_index--;
+			contact_count--;
+		}
+	}
+
+	contacts.resize(contact_count);
+}
+
+bool BodySoftBodyPairSW::setup(real_t p_step) {
 	if (!body->test_collision_mask(soft_body) || body->has_exception(soft_body->get_self()) || soft_body->has_exception(body->get_self())) {
 		collided = false;
 		return false;
@@ -532,148 +585,32 @@ bool BodySoftPairSW::setup(real_t p_step) {
 		return false;
 	}
 
-	offset_B = soft_body->get_transform().get_origin() - body->get_transform().get_origin();
-	//offset_B = Vector3();
-
-	Vector3 offset_A = body->get_transform().get_origin();
-	//Transform xform_Au = body->get_transform();
-	Transform xform_Au = Transform(body->get_transform().basis, Vector3());
+	const Transform &xform_Au = body->get_transform();
 	Transform xform_A = xform_Au * body->get_shape_transform(body_shape);
 
 	Transform xform_Bu = soft_body->get_transform();
-	xform_Bu.origin -= offset_A;
 	Transform xform_B = xform_Bu * soft_body->get_shape_transform(0);
-	//Transform xform_B = Transform();
 
-	// Update previous contacts from node positions.
-	/*Transform inv_xform_Bu = xform_Bu.inverse();
-	for (int i = 0; i < contact_count; i++) {
-		Contact &c = contacts[i];
-		c.local_B = inv_xform_Bu.xform(soft_body->get_node_position(c.index_B));
-	}
-
-	validate_contacts();*/
-
-	// Invalidate previous contacts.
-	contact_count = 0;
-	soft_contacts.clear();
+	validate_contacts();
 
 	ShapeSW *shape_A_ptr = body->get_shape(body_shape);
 	ShapeSW *shape_B_ptr = soft_body->get_shape(0);
 
-	bool collided = CollisionSolverSW::solve_static(shape_A_ptr, xform_A, shape_B_ptr, xform_B, _soft_contact_added_callback, this, &sep_axis);
+	bool collided = CollisionSolverSW::solve_static(shape_A_ptr, xform_A, shape_B_ptr, xform_B, _contact_added_callback, this, &sep_axis);
 	this->collided = collided;
-
-
-	////////////// NEW
-	uint32_t contact_count = soft_contacts.size();
-	for (uint32_t contact_index = 0; contact_index < contact_count; ++contact_index) {
-		SoftContact &c = soft_contacts[contact_index];
-		c.active = false;
-
-		const real_t node_inv_mass = soft_body->get_node_inv_mass(c.index_B);
-		if (node_inv_mass == 0.0) {
-			continue;
-		}
-
-		Vector3 global_A = xform_Au.xform(c.local_A);
-		Vector3 global_B = xform_Bu.xform(c.local_B);
-
-		real_t depth = c.normal.dot(global_A - global_B);
-
-		if (depth <= 0) {
-			continue;
-		}
-
-#ifdef DEBUG_ENABLED
-		if (space->is_debugging_contacts()) {
-			space->add_debug_contact(global_A + offset_A);
-			space->add_debug_contact(global_B + offset_A);
-		}
-#endif
-
-		// contact query reporting...
-		/*if (body->can_report_contacts()) {
-			Vector3 crA = body->get_angular_velocity().cross(c.rA) + body->get_linear_velocity();
-			body->add_contact(global_A, -c.normal, depth, body_shape, global_B, 0, soft_body->get_instance_id(), soft_body->get_self(), crA);
-		}*/
-
-		const real_t friction_coeff = 0.2;
-		const real_t kinetic_contact_hardness = 0.1;
-		const real_t dynamic_contact_hardness = 1.0;
-
-		const Transform &wtr = body->get_transform();
-		const Basis &body_inv_inertia_tensor = body->get_inv_inertia_tensor();
-		const real_t body_inv_mass = body->get_inv_mass();
-		const bool body_dynamic = (body->get_mode() <= PhysicsServer::BODY_MODE_RIGID);
-
-		const Vector3 node_pos = soft_body->get_node_position(c.index_B);
-		const Vector3 node_prev_pos = soft_body->get_node_previous_position(c.index_B);
-
-		const Vector3 ra = node_pos - wtr.origin;
-		const Vector3 va = body->get_velocity_in_local_point(ra) * p_step;
-		const Vector3 vb = node_pos - node_prev_pos;
-		const Vector3 vr = vb - va;
-		const real_t dn = vec3_dot(vr, c.normal);
-		const Vector3 fv = vr - c.normal * dn;
-		const real_t fc = friction_coeff * body->get_friction();
-
-		Basis cr;
-		cr[0] = Vector3(0.0, -ra.z, +ra.y);
-		cr[1] = Vector3(ra.z, 0.0, -ra.x);
-		cr[2] = Vector3(-ra.y, ra.x, 0.0);
-
-		Basis body_inv_mass_diag;
-		body_inv_mass_diag[0] = Vector3(body_inv_mass, 0.0, 0.0);
-		body_inv_mass_diag[1] = Vector3(0.0, body_inv_mass, 0.0);
-		body_inv_mass_diag[2] = Vector3(0.0, 0.0, body_inv_mass);
-
-		Basis node_inv_mass_diag;
-		node_inv_mass_diag[0] = Vector3(node_inv_mass, 0.0, 0.0);
-		node_inv_mass_diag[1] = Vector3(0.0, node_inv_mass, 0.0);
-		node_inv_mass_diag[2] = Vector3(0.0, 0.0, node_inv_mass);
-
-		Basis inv_step_diag;
-		inv_step_diag[0] = Vector3(1.0 / p_step, 0.0, 0.0);
-		inv_step_diag[1] = Vector3(0.0, 1.0 / p_step, 0.0);
-		inv_step_diag[2] = Vector3(0.0, 0.0, 1.0 / p_step);
-
-		const Basis mass_matrix = body_inv_mass_diag - cr * body_inv_inertia_tensor * cr;
-		const Basis impulse_matrix = inv_step_diag * (node_inv_mass_diag + mass_matrix).inverse();
-
-		c.m_c0 = impulse_matrix;
-		c.m_c1 = ra;
-		c.m_c2 = node_inv_mass * p_step;
-		c.m_c3 = fv.length_squared() < (dn * fc * dn * fc) ? 0.0 : 1.0 - fc;
-		c.m_c4 = body_dynamic ? dynamic_contact_hardness : kinetic_contact_hardness;
-
-		// TODO: active body
-	}
-
-	//////////// NEW END
-	return true;
-
-	// TODO: CCD
 
 	real_t max_penetration = space->get_contact_max_allowed_penetration();
 
 	real_t bias = (real_t)0.3;
-
-	if (shape_A_ptr->get_custom_bias() || shape_B_ptr->get_custom_bias()) {
-
-		if (shape_A_ptr->get_custom_bias() == 0)
-			bias = shape_B_ptr->get_custom_bias();
-		else if (shape_B_ptr->get_custom_bias() == 0)
-			bias = shape_A_ptr->get_custom_bias();
-		else
-			bias = (shape_B_ptr->get_custom_bias() + shape_A_ptr->get_custom_bias()) * 0.5;
+	if (shape_A_ptr->get_custom_bias()) {
+		bias = shape_A_ptr->get_custom_bias();
 	}
 
 	real_t inv_dt = 1.0 / p_step;
 
-	for (int i = 0; i < contact_count; i++) {
-
-		Contact &c = contacts[i];
+	uint32_t contact_count = contacts.size();
+	for (uint32_t contact_index = 0; contact_index < contact_count; ++contact_index) {
+		Contact &c = contacts[contact_index];
 		c.active = false;
 
 		real_t node_inv_mass = soft_body->get_node_inv_mass(c.index_B);
@@ -682,8 +619,7 @@ bool BodySoftPairSW::setup(real_t p_step) {
 		}
 
 		Vector3 global_A = xform_Au.xform(c.local_A);
-		Vector3 global_B = xform_Bu.xform(c.local_B);
-		//const Vector3 &global_B = c.local_B;
+		Vector3 global_B = soft_body->get_node_position(c.index_B) + c.local_B;
 
 		real_t depth = c.normal.dot(global_A - global_B);
 
@@ -696,26 +632,27 @@ bool BodySoftPairSW::setup(real_t p_step) {
 #ifdef DEBUG_ENABLED
 
 		if (space->is_debugging_contacts()) {
-			space->add_debug_contact(global_A + offset_A);
-			space->add_debug_contact(global_B + offset_A);
+			space->add_debug_contact(global_A);
+			space->add_debug_contact(global_B);
 		}
 #endif
 
 		c.rA = global_A - body->get_center_of_mass();
-		c.rB = global_B - soft_body->get_center_of_mass() - offset_B;
-
-		// contact query reporting...
+		c.rB = global_B;
 
 		if (body->can_report_contacts()) {
 			Vector3 crA = body->get_angular_velocity().cross(c.rA) + body->get_linear_velocity();
 			body->add_contact(global_A, -c.normal, depth, body_shape, global_B, 0, soft_body->get_instance_id(), soft_body->get_self(), crA);
 		}
 
+		if (body->get_mode() > PhysicsServer::BODY_MODE_KINEMATIC) {
+			body->set_active(true);
+		}
+
 		// Precompute normal mass, tangent mass, and bias.
 		Vector3 inertia_A = body->get_inv_inertia_tensor().xform(c.rA.cross(c.normal));
-		Vector3 inertia_B = soft_body->get_inv_inertia_tensor().xform(c.rB.cross(c.normal));
 		real_t kNormal = body->get_inv_mass() + node_inv_mass;
-		kNormal += c.normal.dot(inertia_A.cross(c.rA)) + c.normal.dot(inertia_B.cross(c.rB));
+		kNormal += c.normal.dot(inertia_A.cross(c.rA));
 		c.mass_normal = 1.0f / kNormal;
 
 		c.bias = -bias * inv_dt * MIN(0.0f, -depth + max_penetration);
@@ -724,20 +661,16 @@ bool BodySoftPairSW::setup(real_t p_step) {
 		Vector3 j_vec = c.normal * c.acc_normal_impulse + c.acc_tangent_impulse;
 		body->apply_impulse(c.rA + body->get_center_of_mass(), -j_vec);
 		soft_body->apply_node_impulse(c.index_B, j_vec);
-		//B->apply_impulse(c.rB + B->get_center_of_mass(), j_vec);
 		c.acc_bias_impulse = 0;
 		c.acc_bias_impulse_center_of_mass = 0;
 
-		//c.bounce = combine_bounce(A, B);
 		c.bounce = body->get_bounce();
 
 		if (c.bounce) {
 			Vector3 crA = body->get_angular_velocity().cross(c.rA);
-			//Vector3 crB = B->get_angular_velocity().cross(c.rB);
-			//Vector3 dv = B->get_linear_velocity() + crB - A->get_linear_velocity() - crA;
 			Vector3 dv = soft_body->get_node_velocity(c.index_B) - body->get_linear_velocity() - crA;
 
-			//normal impulse
+			// Normal impulse.
 			c.bounce = c.bounce * dv.dot(c.normal);
 		}
 	}
@@ -745,74 +678,27 @@ bool BodySoftPairSW::setup(real_t p_step) {
 	return true;
 }
 
-void BodySoftPairSW::solve(real_t p_step) {
-	if (!collided)
+void BodySoftBodyPairSW::solve(real_t p_step) {
+	if (!collided) {
 		return;
+	}
 
-	////////////// NEW
-	uint32_t contact_count = soft_contacts.size();
+	uint32_t contact_count = contacts.size();
 	for (uint32_t contact_index = 0; contact_index < contact_count; ++contact_index) {
-		SoftContact &c = soft_contacts[contact_index];
+		Contact &c = contacts[contact_index];
 		if (!c.active) {
 			continue;
 		}
 
-		const real_t contact_margin = 0.01;
+		c.active = false;
 
-		const Transform &transform_A = get_object_a()->get_transform();
-		const Transform &transform_B = get_object_b()->get_transform();
-
-		Vector3 global_A = transform_A.basis.xform(c.local_A);
-		Vector3 global_B = transform_B.basis.xform(c.local_B) + offset_B;
-
-		Vector3 axis = global_A - global_B;
-		real_t depth = axis.dot(c.normal);
-
-		Vector3 node_pos = soft_body->get_node_position(c.index_B);
-		node_pos += soft_body->get_node_contact_impulse(c.index_B);
-		const Vector3 node_prev_pos = soft_body->get_node_previous_position(c.index_B);
-
-		const Vector3 va = body->get_velocity_in_local_point(c.m_c1) * p_step;
-		const Vector3 vb = node_pos - node_prev_pos;
-		const Vector3 vr = vb - va;
-		const real_t dn = vec3_dot(vr, c.normal);
-		if (dn <= CMP_EPSILON) {
-			const real_t dp = MIN((vec3_dot(node_pos, c.normal) + depth), contact_margin);
-			const Vector3 fv = vr - (c.normal * dn);
-			// c0 is the impulse matrix, c3 is 1 - the friction coefficient or 0, c4 is the contact hardness coefficient
-			const Vector3 impulse = c.m_c0.xform((vr - (fv * c.m_c3) + (c.normal * (dp * c.m_c4))));
-			soft_body->apply_node_contact_impulse(c.index_B, -impulse * c.m_c2);
-
-			body->apply_impulse(impulse, c.m_c1);
-		}
-	}
-
-	//////////// NEW END
-	return;
-
-
-
-
-
-	for (int i = 0; i < contact_count; i++) {
-
-		Contact &c = contacts[i];
-		if (!c.active)
-			continue;
-
-		c.active = false; //try to deactivate, will activate itself if still needed
-
-		//bias impulse
-
+		// Bias impulse.
 		Vector3 crbA = body->get_biased_angular_velocity().cross(c.rA);
-		//Vector3 crbB = B->get_biased_angular_velocity().cross(c.rB);
-		//Vector3 dbv = B->get_biased_linear_velocity() + crbB - A->get_biased_linear_velocity() - crbA;
 		Vector3 dbv = soft_body->get_node_biased_velocity(c.index_B) - body->get_biased_linear_velocity() - crbA;
 
 		real_t vbn = dbv.dot(c.normal);
 
 		if (Math::abs(-vbn + c.bias) > MIN_VELOCITY) {
-
 			real_t jbn = (-vbn + c.bias) * c.mass_normal;
 			real_t jbnOld = c.acc_bias_impulse;
 			c.acc_bias_impulse = MAX(jbnOld + jbn, 0.0f);
@@ -821,17 +707,13 @@ void BodySoftPairSW::solve(real_t p_step) {
 
 			body->apply_bias_impulse(c.rA + body->get_center_of_mass(), -jb, MAX_BIAS_ROTATION / p_step);
 			soft_body->apply_node_bias_impulse(c.index_B, jb);
-			//B->apply_bias_impulse(c.rB + B->get_center_of_mass(), jb, MAX_BIAS_ROTATION / p_step);
 
 			crbA = body->get_biased_angular_velocity().cross(c.rA);
-			//crbB = B->get_biased_angular_velocity().cross(c.rB);
-			//dbv = B->get_biased_linear_velocity() + crbB - A->get_biased_linear_velocity() - crbA;
 			dbv = soft_body->get_node_biased_velocity(c.index_B) - body->get_biased_linear_velocity() - crbA;
 
 			vbn = dbv.dot(c.normal);
 
 			if (Math::abs(-vbn + c.bias) > MIN_VELOCITY) {
-
 				real_t jbn_com = (-vbn + c.bias) / (body->get_inv_mass() + soft_body->get_node_inv_mass(c.index_B));
 				real_t jbnOld_com = c.acc_bias_impulse_center_of_mass;
 				c.acc_bias_impulse_center_of_mass = MAX(jbnOld_com + jbn_com, 0.0f);
@@ -840,22 +722,18 @@ void BodySoftPairSW::solve(real_t p_step) {
 
 				body->apply_bias_impulse(body->get_center_of_mass(), -jb_com, 0.0f);
 				soft_body->apply_node_bias_impulse(c.index_B, -jb_com);
-				//B->apply_bias_impulse(B->get_center_of_mass(), jb_com, 0.0f);
 			}
 
 			c.active = true;
 		}
 
 		Vector3 crA = body->get_angular_velocity().cross(c.rA);
-		//Vector3 crB = B->get_angular_velocity().cross(c.rB);
-		//Vector3 dv = B->get_linear_velocity() + crB - A->get_linear_velocity() - crA;
 		Vector3 dv = soft_body->get_node_velocity(c.index_B) - body->get_linear_velocity() - crA;
 
-		//normal impulse
+		// Normal impulse.
 		real_t vn = dv.dot(c.normal);
 
 		if (Math::abs(vn) > MIN_VELOCITY) {
-
 			real_t jn = -(c.bounce + vn) * c.mass_normal;
 			real_t jnOld = c.acc_normal_impulse;
 			c.acc_normal_impulse = MAX(jnOld + jn, 0.0f);
@@ -864,36 +742,30 @@ void BodySoftPairSW::solve(real_t p_step) {
 
 			body->apply_impulse(c.rA + body->get_center_of_mass(), -j);
 			soft_body->apply_node_impulse(c.index_B, j);
-			//B->apply_impulse(c.rB + B->get_center_of_mass(), j);
 
 			c.active = true;
 		}
 
-		//friction impulse
-
-		//real_t friction = combine_friction(A, B);
+		// Friction impulse.
 		real_t friction = body->get_friction();
 
 		Vector3 lvA = body->get_linear_velocity() + body->get_angular_velocity().cross(c.rA);
-		//Vector3 lvB = B->get_linear_velocity() + B->get_angular_velocity().cross(c.rB);
 		Vector3 lvB = soft_body->get_node_velocity(c.index_B);
 		Vector3 dtv = lvB - lvA;
 
 		real_t tn = c.normal.dot(dtv);
 
-		// tangential velocity
+		// Tangential velocity.
 		Vector3 tv = dtv - c.normal * tn;
 		real_t tvl = tv.length();
 
 		if (tvl > MIN_VELOCITY) {
-
 			tv /= tvl;
 
 			Vector3 temp1 = body->get_inv_inertia_tensor().xform(c.rA.cross(tv));
-			Vector3 temp2 = soft_body->get_inv_inertia_tensor().xform(c.rB.cross(tv));
 
 			real_t t = -tvl /
-					   (body->get_inv_mass() + soft_body->get_node_inv_mass(c.index_B) + tv.dot(temp1.cross(c.rA) + temp2.cross(c.rB)));
+					   (body->get_inv_mass() + soft_body->get_node_inv_mass(c.index_B) + tv.dot(temp1.cross(c.rA)));
 
 			Vector3 jt = t * tv;
 
@@ -904,7 +776,6 @@ void BodySoftPairSW::solve(real_t p_step) {
 			real_t jtMax = c.acc_normal_impulse * friction;
 
 			if (fi_len > CMP_EPSILON && fi_len > jtMax) {
-
 				c.acc_tangent_impulse *= jtMax / fi_len;
 			}
 
@@ -912,25 +783,22 @@ void BodySoftPairSW::solve(real_t p_step) {
 
 			body->apply_impulse(c.rA + body->get_center_of_mass(), -jt);
 			soft_body->apply_node_impulse(c.index_B, jt);
-			//B->apply_impulse(c.rB + B->get_center_of_mass(), jt);
 
 			c.active = true;
 		}
 	}
 }
 
-BodySoftPairSW::BodySoftPairSW(BodySW *p_A, int p_shape_A, SoftBodySW *p_B) {
+BodySoftBodyPairSW::BodySoftBodyPairSW(BodySW *p_A, int p_shape_A, SoftBodySW *p_B) {
 	body = p_A;
 	soft_body = p_B;
 	body_shape = p_shape_A;
 	space = p_A->get_space();
 	body->add_constraint(this, 0);
 	soft_body->add_constraint(this);
-	contact_count = 0;
-	collided = false;
 }
 
-BodySoftPairSW::~BodySoftPairSW() {
+BodySoftBodyPairSW::~BodySoftBodyPairSW() {
 	body->remove_constraint(this);
 	soft_body->remove_constraint(this);
 }

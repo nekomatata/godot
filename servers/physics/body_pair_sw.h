@@ -38,10 +38,6 @@
 
 class BodyContactSW : public ConstraintSW {
 protected:
-	enum {
-		MAX_CONTACTS = 4
-	};
-
 	struct Contact {
 		Vector3 position;
 		Vector3 normal;
@@ -60,18 +56,8 @@ protected:
 		Vector3 rA, rB; // Offset in world orientation with respect to center of mass
 	};
 
-	Vector3 offset_B; //use local A coordinates to avoid numerical issues on collision detection
-
 	Vector3 sep_axis;
-	Contact contacts[MAX_CONTACTS];
-	int contact_count;
-	bool collided;
-
-	static void _contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata);
-
-	void contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B);
-
-	void validate_contacts();
+	bool collided = false;
 
 	SpaceSW *space;
 
@@ -87,6 +73,10 @@ public:
 };
 
 class BodyPairSW : public BodyContactSW {
+	enum {
+		MAX_CONTACTS = 4
+	};
+
 	union {
 		struct {
 			BodySW *A;
@@ -98,6 +88,16 @@ class BodyPairSW : public BodyContactSW {
 
 	int shape_A;
 	int shape_B;
+
+	Contact contacts[MAX_CONTACTS];
+	int contact_count = 0;
+
+	Vector3 offset_B; //use local A coordinates to avoid numerical issues on collision detection
+
+	static void _contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata);
+	void contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B);
+
+	void validate_contacts();
 
 	bool _test_ccd(real_t p_step, BodySW *p_A, int p_shape_A, const Transform &p_xform_A, BodySW *p_B, int p_shape_B, const Transform &p_xform_B);
 
@@ -113,44 +113,30 @@ public:
 	~BodyPairSW();
 };
 
-class BodySoftPairSW : public BodyContactSW {
+class BodySoftBodyPairSW : public BodyContactSW {
 	BodySW *body;
 	SoftBodySW *soft_body;
 
 	int body_shape;
 
-	struct SoftContact {
-		Vector3 position;
-		Vector3 normal;
-		int index_A, index_B;
-		Vector3 local_A, local_B;
-
-		Basis m_c0; // Impulse matrix
-		Vector3 m_c1; // Relative anchor
-		real_t m_c2; // ima*dt
-		real_t m_c3; // Friction
-		real_t m_c4; // Hardness
-
-		bool active;
-	};
-
-	LocalVector<SoftContact> soft_contacts;
+	LocalVector<Contact> contacts;
 
 protected:
 	virtual CollisionObjectSW *get_object_a() const override { return body; }
 	virtual CollisionObjectSW *get_object_b() const override { return soft_body; }
 
-	static void _soft_contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata);
+	static void _contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata);
 
-	void soft_contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B);
+	void contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B);
 
+	void validate_contacts();
 
 public:
 	bool setup(real_t p_step);
 	void solve(real_t p_step);
 
-	BodySoftPairSW(BodySW *p_A, int p_shape_A, SoftBodySW *p_B);
-	~BodySoftPairSW();
+	BodySoftBodyPairSW(BodySW *p_A, int p_shape_A, SoftBodySW *p_B);
+	~BodySoftBodyPairSW();
 };
 
 #endif // BODY_PAIR__SW_H

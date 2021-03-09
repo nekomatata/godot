@@ -148,6 +148,8 @@ bool CollisionSolverSW::solve_soft_body(const ShapeSW *p_shape_A, const Transfor
 	const SoftBodySW *soft_body = soft_body_shape_B->get_soft_body();
 	const Transform &world_to_local = soft_body->get_inv_transform();
 
+	const real_t contact_margin = soft_body->get_contact_margin();
+
 	_SoftBodyContactCollisionInfo cinfo;
 	cinfo.result_callback = p_result_callback;
 	cinfo.userdata = p_userdata;
@@ -164,40 +166,13 @@ bool CollisionSolverSW::solve_soft_body(const ShapeSW *p_shape_A, const Transfor
 		//node_transform.origin = node_position;
 
 		SphereShapeSW sphere_shape;
-		sphere_shape.set_data(0.01);
+		sphere_shape.set_data(contact_margin);
 
 		cinfo.index_B = node_index;
 		solve_static(p_shape_A, p_transform_A, &sphere_shape, node_transform, soft_body_contact_callback, &cinfo);
 	}
 
 	return (cinfo.contact_count > 0);
-}
-
-struct _ConcaveContactCollisionInfo {
-	CollisionSolverSW::CallbackResult result_callback = nullptr;
-	void *userdata = nullptr;
-	FaceShapeSW *face_shape = nullptr;
-	bool swap_result = false;
-	bool collided = false;
-};
-
-void CollisionSolverSW::concave_contact_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
-
-	_ConcaveContactCollisionInfo &cinfo = *(_ConcaveContactCollisionInfo *)(p_userdata);
-
-	if ((p_point_B - p_point_A).dot(cinfo.face_shape->normal) < 0.0) {
-		return;
-	}
-
-	//if ((p_point_B - p_point_A).dot(cinfo.face_shape->normal) >= 0.0) {
-	{
-		cinfo.collided = true;
-		if (cinfo.swap_result) {
-			cinfo.result_callback(p_point_B, p_index_B, p_point_A, p_index_A, cinfo.userdata);
-		} else {
-			cinfo.result_callback(p_point_A, p_index_A, p_point_B, p_index_B, cinfo.userdata);
-		}
-	}
 }
 
 struct _ConcaveCollisionInfo {
@@ -217,23 +192,17 @@ struct _ConcaveCollisionInfo {
 	Vector3 close_A, close_B;
 };
 
-void CollisionSolverSW::concave_callback(void *p_userdata, FaceShapeSW *p_face_shape) {
+void CollisionSolverSW::concave_callback(void *p_userdata, ShapeSW *p_convex) {
 
 	_ConcaveCollisionInfo &cinfo = *(_ConcaveCollisionInfo *)(p_userdata);
 	cinfo.aabb_tests++;
 
-	_ConcaveContactCollisionInfo contact_cinfo;
-	contact_cinfo.result_callback = cinfo.result_callback;
-	contact_cinfo.userdata = cinfo.userdata;
-	contact_cinfo.swap_result = cinfo.swap_result;
-	contact_cinfo.face_shape = p_face_shape;
+	bool collided = collision_solver(cinfo.shape_A, *cinfo.transform_A, p_convex, *cinfo.transform_B, cinfo.result_callback, cinfo.userdata, cinfo.swap_result, NULL, cinfo.margin_A, cinfo.margin_B);
+	if (!collided)
+		return;
 
-	collision_solver(cinfo.shape_A, *cinfo.transform_A, p_face_shape, *cinfo.transform_B, concave_contact_callback, &contact_cinfo, false, NULL, cinfo.margin_A, cinfo.margin_B);
-
-	if (contact_cinfo.collided) {
-		cinfo.collided = true;
-		cinfo.collisions++;
-	}
+	cinfo.collided = true;
+	cinfo.collisions++;
 }
 
 bool CollisionSolverSW::solve_concave(const ShapeSW *p_shape_A, const Transform &p_transform_A, const ShapeSW *p_shape_B, const Transform &p_transform_B, CallbackResult p_result_callback, void *p_userdata, bool p_swap_result, real_t p_margin_A, real_t p_margin_B) {
@@ -276,8 +245,6 @@ bool CollisionSolverSW::solve_concave(const ShapeSW *p_shape_A, const Transform 
 		local_aabb.position[i] = smin;
 		local_aabb.size[i] = smax - smin;
 	}
-
-	local_aabb.grow_by(1.0);
 
 	concave_B->cull(local_aabb, concave_callback, &cinfo);
 
@@ -356,7 +323,7 @@ bool CollisionSolverSW::solve_static(const ShapeSW *p_shape_A, const Transform &
 	}
 }
 
-void CollisionSolverSW::concave_distance_callback(void *p_userdata, FaceShapeSW *p_face_shape) {
+void CollisionSolverSW::concave_distance_callback(void *p_userdata, ShapeSW *p_convex) {
 
 	_ConcaveCollisionInfo &cinfo = *(_ConcaveCollisionInfo *)(p_userdata);
 	cinfo.aabb_tests++;
@@ -364,7 +331,7 @@ void CollisionSolverSW::concave_distance_callback(void *p_userdata, FaceShapeSW 
 		return;
 
 	Vector3 close_A, close_B;
-	cinfo.collided = !gjk_epa_calculate_distance(cinfo.shape_A, *cinfo.transform_A, p_face_shape, *cinfo.transform_B, close_A, close_B);
+	cinfo.collided = !gjk_epa_calculate_distance(cinfo.shape_A, *cinfo.transform_A, p_convex, *cinfo.transform_B, close_A, close_B);
 
 	if (cinfo.collided)
 		return;

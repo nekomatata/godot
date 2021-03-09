@@ -1056,7 +1056,7 @@ void *SpaceSW::_broadphase_pair(CollisionObjectSW *A, int p_subindex_A, Collisio
 		}
 	} else if (type_A == CollisionObjectSW::TYPE_BODY) {
 		if (type_B == CollisionObjectSW::TYPE_SOFT_BODY) {
-			BodySoftPairSW *soft_pair = memnew(BodySoftPairSW((BodySW *)A, p_subindex_A, (SoftBodySW *)B));
+			BodySoftBodyPairSW *soft_pair = memnew(BodySoftBodyPairSW((BodySW *)A, p_subindex_A, (SoftBodySW *)B));
 			return soft_pair;
 		} else {
 			BodyPairSW *b = memnew(BodyPairSW((BodySW *)A, p_subindex_A, (BodySW *)B, p_subindex_B));

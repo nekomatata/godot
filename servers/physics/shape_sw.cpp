@@ -1221,15 +1221,10 @@ void FaceShapeSW::get_supports(const Vector3 &p_normal, int p_max, Vector3 *r_su
 	/** TEST FACE AS SUPPORT **/
 	real_t face_dot = normal.dot(n);
 	if (Math::abs(face_dot) > _FACE_IS_VALID_SUPPORT_THRESHOLD) {
-	//if (face_dot > _FACE_IS_VALID_SUPPORT_THRESHOLD) {
-		//bool inverted = face_dot < 0.0;
-		bool inverted = false;
-
 		r_amount = 3;
 		r_type = FEATURE_FACE;
 		for (int i = 0; i < 3; i++) {
-			int vertex_index = inverted ? 2 - i : i;
-			r_supports[i] = vertex[vertex_index];
+			r_supports[i] = vertex[i];
 		}
 		return;
 	}
