@@ -33,12 +33,13 @@
 
 #include "body_sw.h"
 #include "constraint_sw.h"
+#include "core/local_vector.h"
 #include "soft_body_sw.h"
 
 class BodyContactSW : public ConstraintSW {
 protected:
 	enum {
-		MAX_CONTACTS = 16
+		MAX_CONTACTS = 4
 	};
 
 	struct Contact {
@@ -118,9 +119,31 @@ class BodySoftPairSW : public BodyContactSW {
 
 	int body_shape;
 
+	struct SoftContact {
+		Vector3 position;
+		Vector3 normal;
+		int index_A, index_B;
+		Vector3 local_A, local_B;
+
+		Basis m_c0; // Impulse matrix
+		Vector3 m_c1; // Relative anchor
+		real_t m_c2; // ima*dt
+		real_t m_c3; // Friction
+		real_t m_c4; // Hardness
+
+		bool active;
+	};
+
+	LocalVector<SoftContact> soft_contacts;
+
 protected:
 	virtual CollisionObjectSW *get_object_a() const override { return body; }
 	virtual CollisionObjectSW *get_object_b() const override { return soft_body; }
+
+	static void _soft_contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata);
+
+	void soft_contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B);
+
 
 public:
 	bool setup(real_t p_step);

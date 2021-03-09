@@ -369,6 +369,11 @@ Vector3 SoftBodySW::get_node_position(uint32_t p_node_index) const {
 	return nodes[p_node_index].x;
 }
 
+Vector3 SoftBodySW::get_node_previous_position(uint32_t p_node_index) const {
+	ERR_FAIL_INDEX_V(p_node_index, nodes.size(), Vector3());
+	return nodes[p_node_index].q;
+}
+
 Vector3 SoftBodySW::get_node_velocity(uint32_t p_node_index) const {
 	ERR_FAIL_INDEX_V(p_node_index, nodes.size(), Vector3());
 	return nodes[p_node_index].v;
@@ -377,6 +382,12 @@ Vector3 SoftBodySW::get_node_velocity(uint32_t p_node_index) const {
 Vector3 SoftBodySW::get_node_biased_velocity(uint32_t p_node_index) const {
 	ERR_FAIL_INDEX_V(p_node_index, nodes.size(), Vector3());
 	return nodes[p_node_index].bv;
+}
+
+void SoftBodySW::set_node_position(uint32_t p_node_index, const Vector3 &p_position) {
+	ERR_FAIL_INDEX(p_node_index, nodes.size());
+	Node &node = nodes[p_node_index];
+	node.x = p_position;
 }
 
 void SoftBodySW::apply_node_impulse(uint32_t p_node_index, const Vector3 &p_impulse) {
@@ -389,6 +400,17 @@ void SoftBodySW::apply_node_bias_impulse(uint32_t p_node_index, const Vector3 &p
 	ERR_FAIL_INDEX(p_node_index, nodes.size());
 	Node &node = nodes[p_node_index];
 	node.bv += p_impulse * node.im;
+}
+
+Vector3 SoftBodySW::get_node_contact_impulse(uint32_t p_node_index) const {
+	ERR_FAIL_INDEX_V(p_node_index, nodes.size(), Vector3());
+	return nodes[p_node_index].ci;
+}
+
+void SoftBodySW::apply_node_contact_impulse(uint32_t p_node_index, const Vector3 &p_impulse) {
+	ERR_FAIL_INDEX(p_node_index, nodes.size());
+	Node &node = nodes[p_node_index];
+	node.ci += p_impulse;
 }
 
 bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const PoolVector<Vector3> &p_vertices) {
@@ -781,6 +803,7 @@ void SoftBodySW::predict_motion(real_t p_delta) {
 		n.x += n.v * p_delta;
 		//n.bv = Vector3();
 		n.f = Vector3();
+		n.ci = Vector3();
 	}
 	// Bounds and tree update.
 	update_bounds();
@@ -846,8 +869,17 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 	for (uint32_t isolve = 0; isolve < iteration_count; ++isolve) {
 		const real_t ti = isolve / (real_t)iteration_count;
 		p_solve_links(1.0, ti);
-		// TODO: Solve contacts
+
+		// TODO: contacts with iterations
+		//p_solve_contacts(1.0, ti);
 	}
+
+	// temp solve contacts
+	for (i = 0, ni = nodes.size(); i < ni; ++i) {
+		Node &n = nodes[i];
+		n.x += n.ci;
+	}
+
 	const real_t vc = (1.0 - damping_coefficient) / p_delta;
 	for (i = 0, ni = nodes.size(); i < ni; ++i) {
 		Node &n = nodes[i];
@@ -892,6 +924,9 @@ void SoftBodySW::p_solve_links(real_t kst, real_t ti) {
 			}
 		}
 	}
+}
+
+void SoftBodySW::p_solve_contacts(real_t kst, real_t ti) {
 }
 
 void SoftBodySW::v_solve_links(real_t kst) {

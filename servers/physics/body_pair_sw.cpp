@@ -501,6 +501,25 @@ BodyPairSW::~BodyPairSW() {
 	B->remove_constraint(this);
 }
 
+void BodySoftPairSW::_soft_contact_added_callback(const Vector3 &p_point_A, int p_index_A, const Vector3 &p_point_B, int p_index_B, void *p_userdata) {
+	BodySoftPairSW *pair = (BodySoftPairSW *)p_userdata;
+	pair->soft_contact_added_callback(p_point_A, p_index_A, p_point_B, p_index_B);
+}
+
+void BodySoftPairSW::soft_contact_added_callback(const Vector3& p_point_A, int p_index_A, const Vector3& p_point_B, int p_index_B) {
+	Vector3 local_A = get_object_a()->get_inv_transform().basis.xform(p_point_A);
+	Vector3 local_B = get_object_b()->get_inv_transform().basis.xform(p_point_B - offset_B);
+
+	SoftContact contact;
+	contact.index_A = p_index_A;
+	contact.index_B = p_index_B;
+	contact.local_A = local_A;
+	contact.local_B = local_B;
+	contact.normal = (p_point_A - p_point_B).normalized();
+
+	soft_contacts.push_back(contact);
+}
+
 bool BodySoftPairSW::setup(real_t p_step) {
 	//cannot collide
 	if (!body->test_collision_mask(soft_body) || body->has_exception(soft_body->get_self()) || soft_body->has_exception(body->get_self())) {
@@ -537,12 +556,102 @@ bool BodySoftPairSW::setup(real_t p_step) {
 
 	// Invalidate previous contacts.
 	contact_count = 0;
+	soft_contacts.clear();
 
 	ShapeSW *shape_A_ptr = body->get_shape(body_shape);
 	ShapeSW *shape_B_ptr = soft_body->get_shape(0);
 
-	bool collided = CollisionSolverSW::solve_static(shape_A_ptr, xform_A, shape_B_ptr, xform_B, _contact_added_callback, this, &sep_axis);
+	bool collided = CollisionSolverSW::solve_static(shape_A_ptr, xform_A, shape_B_ptr, xform_B, _soft_contact_added_callback, this, &sep_axis);
 	this->collided = collided;
+
+
+	////////////// NEW
+	uint32_t contact_count = soft_contacts.size();
+	for (uint32_t contact_index = 0; contact_index < contact_count; ++contact_index) {
+		SoftContact &c = soft_contacts[contact_index];
+		c.active = false;
+
+		const real_t node_inv_mass = soft_body->get_node_inv_mass(c.index_B);
+		if (node_inv_mass == 0.0) {
+			continue;
+		}
+
+		Vector3 global_A = xform_Au.xform(c.local_A);
+		Vector3 global_B = xform_Bu.xform(c.local_B);
+
+		real_t depth = c.normal.dot(global_A - global_B);
+
+		if (depth <= 0) {
+			continue;
+		}
+
+#ifdef DEBUG_ENABLED
+		if (space->is_debugging_contacts()) {
+			space->add_debug_contact(global_A + offset_A);
+			space->add_debug_contact(global_B + offset_A);
+		}
+#endif
+
+		// contact query reporting...
+		/*if (body->can_report_contacts()) {
+			Vector3 crA = body->get_angular_velocity().cross(c.rA) + body->get_linear_velocity();
+			body->add_contact(global_A, -c.normal, depth, body_shape, global_B, 0, soft_body->get_instance_id(), soft_body->get_self(), crA);
+		}*/
+
+		const real_t friction_coeff = 0.2;
+		const real_t kinetic_contact_hardness = 0.1;
+		const real_t dynamic_contact_hardness = 1.0;
+
+		const Transform &wtr = body->get_transform();
+		const Basis &body_inv_inertia_tensor = body->get_inv_inertia_tensor();
+		const real_t body_inv_mass = body->get_inv_mass();
+		const bool body_dynamic = (body->get_mode() <= PhysicsServer::BODY_MODE_RIGID);
+
+		const Vector3 node_pos = soft_body->get_node_position(c.index_B);
+		const Vector3 node_prev_pos = soft_body->get_node_previous_position(c.index_B);
+
+		const Vector3 ra = node_pos - wtr.origin;
+		const Vector3 va = body->get_velocity_in_local_point(ra) * p_step;
+		const Vector3 vb = node_pos - node_prev_pos;
+		const Vector3 vr = vb - va;
+		const real_t dn = vec3_dot(vr, c.normal);
+		const Vector3 fv = vr - c.normal * dn;
+		const real_t fc = friction_coeff * body->get_friction();
+
+		Basis cr;
+		cr[0] = Vector3(0.0, -ra.z, +ra.y);
+		cr[1] = Vector3(ra.z, 0.0, -ra.x);
+		cr[2] = Vector3(-ra.y, ra.x, 0.0);
+
+		Basis body_inv_mass_diag;
+		body_inv_mass_diag[0] = Vector3(body_inv_mass, 0.0, 0.0);
+		body_inv_mass_diag[1] = Vector3(0.0, body_inv_mass, 0.0);
+		body_inv_mass_diag[2] = Vector3(0.0, 0.0, body_inv_mass);
+
+		Basis node_inv_mass_diag;
+		node_inv_mass_diag[0] = Vector3(node_inv_mass, 0.0, 0.0);
+		node_inv_mass_diag[1] = Vector3(0.0, node_inv_mass, 0.0);
+		node_inv_mass_diag[2] = Vector3(0.0, 0.0, node_inv_mass);
+
+		Basis inv_step_diag;
+		inv_step_diag[0] = Vector3(1.0 / p_step, 0.0, 0.0);
+		inv_step_diag[1] = Vector3(0.0, 1.0 / p_step, 0.0);
+		inv_step_diag[2] = Vector3(0.0, 0.0, 1.0 / p_step);
+
+		const Basis mass_matrix = body_inv_mass_diag - cr * body_inv_inertia_tensor * cr;
+		const Basis impulse_matrix = inv_step_diag * (node_inv_mass_diag + mass_matrix).inverse();
+
+		c.m_c0 = impulse_matrix;
+		c.m_c1 = ra;
+		c.m_c2 = node_inv_mass * p_step;
+		c.m_c3 = fv.length_squared() < (dn * fc * dn * fc) ? 0.0 : 1.0 - fc;
+		c.m_c4 = body_dynamic ? dynamic_contact_hardness : kinetic_contact_hardness;
+
+		// TODO: active body
+	}
+
+	//////////// NEW END
+	return true;
 
 	// TODO: CCD
 
@@ -639,6 +748,51 @@ bool BodySoftPairSW::setup(real_t p_step) {
 void BodySoftPairSW::solve(real_t p_step) {
 	if (!collided)
 		return;
+
+	////////////// NEW
+	uint32_t contact_count = soft_contacts.size();
+	for (uint32_t contact_index = 0; contact_index < contact_count; ++contact_index) {
+		SoftContact &c = soft_contacts[contact_index];
+		if (!c.active) {
+			continue;
+		}
+
+		const real_t contact_margin = 0.01;
+
+		const Transform &transform_A = get_object_a()->get_transform();
+		const Transform &transform_B = get_object_b()->get_transform();
+
+		Vector3 global_A = transform_A.basis.xform(c.local_A);
+		Vector3 global_B = transform_B.basis.xform(c.local_B) + offset_B;
+
+		Vector3 axis = global_A - global_B;
+		real_t depth = axis.dot(c.normal);
+
+		Vector3 node_pos = soft_body->get_node_position(c.index_B);
+		node_pos += soft_body->get_node_contact_impulse(c.index_B);
+		const Vector3 node_prev_pos = soft_body->get_node_previous_position(c.index_B);
+
+		const Vector3 va = body->get_velocity_in_local_point(c.m_c1) * p_step;
+		const Vector3 vb = node_pos - node_prev_pos;
+		const Vector3 vr = vb - va;
+		const real_t dn = vec3_dot(vr, c.normal);
+		if (dn <= CMP_EPSILON) {
+			const real_t dp = MIN((vec3_dot(node_pos, c.normal) + depth), contact_margin);
+			const Vector3 fv = vr - (c.normal * dn);
+			// c0 is the impulse matrix, c3 is 1 - the friction coefficient or 0, c4 is the contact hardness coefficient
+			const Vector3 impulse = c.m_c0.xform((vr - (fv * c.m_c3) + (c.normal * (dp * c.m_c4))));
+			soft_body->apply_node_contact_impulse(c.index_B, -impulse * c.m_c2);
+
+			body->apply_impulse(impulse, c.m_c1);
+		}
+	}
+
+	//////////// NEW END
+	return;
+
+
+
+
 
 	for (int i = 0; i < contact_count; i++) {
 
