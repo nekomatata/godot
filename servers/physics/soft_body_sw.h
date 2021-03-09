@@ -50,14 +50,9 @@ class SoftBodySW : public CollisionObjectSW {
 		Vector3 q; // Previous step position/Test position
 		Vector3 bv; // Biased Velocity
 		Vector3 v; // Velocity
-		Vector3 vsplit; // Temporary Velocity in addintion to velocity used in split impulse
-		Vector3 vn; // Previous step velocity
-		Vector3 f; // Force accumulator
 		Vector3 n; // Normal
 		real_t im = 0.0; // 1/mass
-		real_t area = 0.0; // Area
 		//btDbvtNode *leaf; // Leaf data
-		//int battach : 1; // Attached
 		int index = 0;
 	};
 
@@ -65,7 +60,6 @@ class SoftBodySW : public CollisionObjectSW {
 		Vector3 c3; // gradient
 		Node *n[2] = { nullptr, nullptr }; // Node pointers
 		real_t rl = 0.0; // Rest length
-		//int bending : 1; // Bending link
 		real_t c0 = 0.0; // (ima+imb)*kLST
 		real_t c1 = 0.0; // rl^2
 		real_t c2 = 0.0; // |gradient|^2/c0
@@ -188,15 +182,13 @@ private:
 	void apply_nodes_transform(const Transform &p_transform);
 
 	void add_velocity(const Vector3 &p_velocity);
-	void apply_forces();
 
 	bool create_from_trimesh(const PoolVector<int> &p_indices, const PoolVector<Vector3> &p_vertices);
 	void generate_bending_constraints(int p_distance);
 	void append_link(uint32_t p_node1, uint32_t p_node2);
 	void append_face(uint32_t p_node1, uint32_t p_node2, uint32_t p_node3);
 
-	void p_solve_links(real_t kst, real_t ti);
-	void v_solve_links(real_t kst);
+	void solve_links(real_t kst, real_t ti);
 
 	void initialize_shape(bool p_force_move = true);
 	void deinitialize_shape();

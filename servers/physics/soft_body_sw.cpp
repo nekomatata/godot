@@ -60,21 +60,20 @@ void SoftBodySW::set_state(PhysicsServer::BodyState p_state, const Variant &p_va
 			apply_nodes_transform(get_transform());
 
 			// TODO: broadphase update
-			// TODO: activation
-			//wakeup();
 
 		} break;
 		case PhysicsServer::BODY_STATE_LINEAR_VELOCITY: {
-			// TODO: velocity
+			// Not supported.
+			ERR_FAIL_MSG("Linear velocity is not supported for Soft bodies.");
 		} break;
 		case PhysicsServer::BODY_STATE_ANGULAR_VELOCITY: {
-			// TODO: velocity
+			ERR_FAIL_MSG("Angular velocity is not supported for Soft bodies.");
 		} break;
 		case PhysicsServer::BODY_STATE_SLEEPING: {
-			// TODO: activation
+			ERR_FAIL_MSG("Sleeping state is not supported for Soft bodies.");
 		} break;
 		case PhysicsServer::BODY_STATE_CAN_SLEEP: {
-			// TODO: activation
+			ERR_FAIL_MSG("Sleeping state is not supported for Soft bodies.");
 		} break;
 	}
 }
@@ -85,20 +84,17 @@ Variant SoftBodySW::get_state(PhysicsServer::BodyState p_state) const {
 			return get_transform();
 		} break;
 		case PhysicsServer::BODY_STATE_LINEAR_VELOCITY: {
-			// TODO: velocity
-			return Vector3();
+			ERR_FAIL_V_MSG("Linear velocity is not supported for Soft bodies.", Vector3());
 		} break;
 		case PhysicsServer::BODY_STATE_ANGULAR_VELOCITY: {
-			// TODO: velocity
+			ERR_FAIL_V_MSG("Angular velocity is not supported for Soft bodies.", Vector3());
 			return Vector3();
 		} break;
 		case PhysicsServer::BODY_STATE_SLEEPING: {
-			// TODO: activation
-			return false;
+			ERR_FAIL_V_MSG("Sleeping state is not supported for Soft bodies.", false);
 		} break;
 		case PhysicsServer::BODY_STATE_CAN_SLEEP: {
-			// TODO: activation
-			return false;
+			ERR_FAIL_V_MSG("Sleeping state is not supported for Soft bodies.", false);
 		} break;
 	}
 
@@ -107,7 +103,6 @@ Variant SoftBodySW::get_state(PhysicsServer::BodyState p_state) const {
 
 void SoftBodySW::set_space(SpaceSW *p_space) {
 	if (get_space()) {
-		// TODO: activation
 		get_space()->soft_body_remove_from_active_list(&active_list);
 
 		deinitialize_shape();
@@ -116,7 +111,6 @@ void SoftBodySW::set_space(SpaceSW *p_space) {
 	_set_space(p_space);
 
 	if (get_space()) {
-		// TODO: activation
 		get_space()->soft_body_add_to_active_list(&active_list);
 
 		if (bounds != AABB()) {
@@ -204,8 +198,6 @@ void SoftBodySW::update_bounds() {
 void SoftBodySW::update_constants() {
 	reset_link_rest_lengths();
 	update_link_constants();
-	// TODO: area
-	//updateArea();
 }
 
 void SoftBodySW::reset_link_rest_lengths() {
@@ -233,18 +225,16 @@ void SoftBodySW::apply_nodes_transform(const Transform &p_transform) {
 	for (int node_index = 0; node_index < node_count; ++node_index) {
 		Node &node = nodes[node_index];
 
-		//node.x = p_transform.xform(node.s);
 		node.x = p_transform.xform(node.x);
 		node.q = node.x;
 		node.v = Vector3();
 		node.bv = Vector3();
-		node.f = Vector3();
 
 		// TODO: node tree
 		//m_ndbvt.update(node.leaf, btDbvtVolume::FromCR(node.x, margin));
 	}
 
-	// TODO: update more stuff
+	// TODO: update normals
 	//updateNormals();
 	update_bounds();
 	update_constants();
@@ -432,10 +422,9 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 
 			for (int triangle_index = 0; triangle_index < triangle_count; ++triangle_index) {
 				for (int i = 0; i < 3; ++i) {
-					// TODO: check if inversion is needed.
-					int visual_index = 3 * triangle_index + 2 - i;
+					int visual_index = 3 * triangle_index + i;
 					int physics_index = map_visual_to_physics[indices_read[visual_index]];
-					triangles[3 * triangle_index + i] = physics_index;
+					triangles[visual_index] = physics_index;
 					node_count = MAX(node_count, physics_index);
 				}
 			}
@@ -456,9 +445,6 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 
 		// TODO: node tree
 		//node.leaf = m_ndbvt.insert(btDbvtVolume::FromCR(node.x, margin), &node);
-
-		// TODO: material?
-		//node.material = pm;
 	}
 
 	// Create links and faces from triangles.
@@ -503,7 +489,8 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 	//m_bUpdateRtCst = true;
 
 	// TODO: btSoftBodyHelpers::ReoptimizeLinkOrder
-	// TODO: update more stuff
+
+	// TODO: update normals
 	//updateNormals();
 	update_bounds();
 
@@ -604,7 +591,6 @@ void SoftBodySW::generate_bending_constraints(int p_distance) {
 				int idx_ij = j * n + i;
 				if (adj[idx_ij] == (unsigned)p_distance) {
 					append_link(i, j);
-					//links[links.size() - 1].bending = 1;
 					++nlinks;
 				}
 			}
@@ -615,7 +601,6 @@ void SoftBodySW::generate_bending_constraints(int p_distance) {
 
 void SoftBodySW::append_link(uint32_t p_node1, uint32_t p_node2) {
 	if (p_node1 == p_node2) {
-		// TODO: Check if needed (not skipped in bullet)
 		return;
 	}
 
@@ -721,11 +706,6 @@ void SoftBodySW::add_velocity(const Vector3 &p_velocity) {
 	}
 }
 
-void SoftBodySW::apply_forces() {
-	// TODO drag coefficient
-	// TODO pressure coefficient
-}
-
 void SoftBodySW::predict_motion(real_t p_delta) {
 	const real_t inv_delta = 1.0 / p_delta;
 
@@ -740,41 +720,16 @@ void SoftBodySW::predict_motion(real_t p_delta) {
 			initializeFaceTree();
 		}
 	}*/
-    
-    // Prepare.
-	/*m_sst.sdt = dt * m_cfg.timescale;
-	m_sst.isdt = 1 / m_sst.sdt;
-	m_sst.velmrg = m_sst.sdt * 3;
-	m_sst.radmrg = getCollisionShape()->getMargin();
-	m_sst.updmrg = m_sst.radmrg * (btScalar)0.25;*/
 
 	// Forces.
-	// TODO: gravity from area detection
+	// TODO: gravity from area detection.
 	Vector3 gravity(0.0, -9.80665, 0.0);
 	add_velocity(gravity * p_delta);
-	apply_forces();
 	// Integrate.
 	for (i = 0, ni = nodes.size(); i < ni; ++i) {
 		Node &n = nodes[i];
 		n.q = n.x;
-		// TODO: integrate forces.
-		/*Vector3 deltaV = n.f * n.im * p_delta;
-		{
-			real_t clampDeltaV = MAX_DISPLACEMENT * inv_delta;
-			for (int c = 0; c < 3; c++) {
-				if (deltaV[c] > clampDeltaV) {
-					deltaV[c] = clampDeltaV;
-				}
-				if (deltaV[c] < -clampDeltaV) {
-					deltaV[c] = -clampDeltaV;
-				}
-			}
-		}
-		n.v += deltaV;*/
-		//n.v += n.bv;
 		n.x += n.v * p_delta;
-		//n.bv = Vector3();
-		n.f = Vector3();
 	}
 	// Bounds and tree update.
 	update_bounds();
@@ -826,23 +781,17 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 	}
 
 	// Solve velocities.
-	// TODO: test with velocity solver.
-	/*for (uint32_t isolve = 0; isolve < iteration_count; ++isolve) {
-		v_solve_links(1.0);
-	}*/
 	for (i = 0, ni = nodes.size(); i < ni; ++i) {
 		Node &n = nodes[i];
-		//n.x = n.q + (n.v + n.bv) * p_delta;
 		n.x = n.q + n.v * p_delta;
 	}
 
 	// Solve positions.
 	for (uint32_t isolve = 0; isolve < iteration_count; ++isolve) {
 		const real_t ti = isolve / (real_t)iteration_count;
-		p_solve_links(1.0, ti);
-		// TODO: Solve contacts
+		solve_links(1.0, ti);
 	}
-	const real_t vc = (1.0 - damping_coefficient) / p_delta;
+	const real_t vc = (1.0 - damping_coefficient) * inv_delta;
 	for (i = 0, ni = nodes.size(); i < ni; ++i) {
 		Node &n = nodes[i];
 
@@ -850,28 +799,15 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 		n.bv = Vector3();
 
 		n.v = (n.x - n.q) * vc;
-		n.f = Vector3();
 
 		n.q = n.x;
 	}
 
-	// Solve drift.
-	const real_t vcf = inv_delta;
-	/*for (uint32_t idrift = 0; idrift < iteration_count; ++idrift) {
-		for (int iseq = 0; iseq < m_cfg.m_dsequence.size(); ++iseq) {
-			getSolver(m_cfg.m_dsequence[iseq])(this, 1, 0);
-		}
-	}*/
-	for (uint32_t i = 0, ni = nodes.size(); i < ni; ++i) {
-		Node &n = nodes[i];
-		n.v += (n.x - n.q) * vcf;
-	}
-
-	// TODO: update more stuff
+	// TODO: update normals
 	//updateNormals();
 }
 
-void SoftBodySW::p_solve_links(real_t kst, real_t ti) {
+void SoftBodySW::solve_links(real_t kst, real_t ti) {
 	for (uint32_t i = 0, ni = links.size(); i < ni; ++i) {
 		Link &l = links[i];
 		if (l.c0 > 0) {
@@ -885,16 +821,6 @@ void SoftBodySW::p_solve_links(real_t kst, real_t ti) {
 				b.x += del * (k * b.im);
 			}
 		}
-	}
-}
-
-void SoftBodySW::v_solve_links(real_t kst) {
-	for (uint32_t i = 0, ni = links.size(); i < ni; ++i) {
-		Link &l = links[i];
-		Node **n = l.n;
-		const real_t j = -vec3_dot(l.c3, n[0]->v - n[1]->v) * l.c2 * kst;
-		n[0]->v += l.c3 * (j * n[0]->im);
-		n[1]->v -= l.c3 * (j * n[1]->im);
 	}
 }
 
