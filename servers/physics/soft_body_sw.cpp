@@ -165,7 +165,7 @@ void SoftBodySW::update_visual_server(VisualServerHandler *p_visual_server_handl
 
 void SoftBodySW::update_bounds() {
 	AABB prev_bounds = bounds;
-	prev_bounds.grow_by(contact_margin);
+	prev_bounds.grow_by(collision_margin);
 
 	bounds = AABB();
 
@@ -202,17 +202,17 @@ void SoftBodySW::update_constants() {
 
 void SoftBodySW::reset_link_rest_lengths() {
 	for (uint32_t i = 0, ni = links.size(); i < ni; ++i) {
-		Link &l = links[i];
-		l.rl = (l.n[0]->x - l.n[1]->x).length();
-		l.c1 = l.rl * l.rl;
+		Link &link = links[i];
+		link.rl = (link.n[0]->x - link.n[1]->x).length();
+		link.c1 = link.rl * link.rl;
 	}
 }
 
 void SoftBodySW::update_link_constants() {
 	real_t inv_linear_stiffness = 1.0 / linear_stiffness;
 	for (uint32_t i = 0, ni = links.size(); i < ni; ++i) {
-		Link &l = links[i];
-		l.c0 = (l.n[0]->im + l.n[1]->im) * inv_linear_stiffness;
+		Link &link = links[i];
+		link.c0 = (link.n[0]->im + link.n[1]->im) * inv_linear_stiffness;
 	}
 }
 
@@ -222,6 +222,7 @@ void SoftBodySW::apply_nodes_transform(const Transform &p_transform) {
 	}
 
 	size_t node_count = nodes.size();
+	Vector3 leaf_size = Vector3(collision_margin, collision_margin, collision_margin) * 2.0;
 	for (int node_index = 0; node_index < node_count; ++node_index) {
 		Node &node = nodes[node_index];
 
@@ -230,8 +231,8 @@ void SoftBodySW::apply_nodes_transform(const Transform &p_transform) {
 		node.v = Vector3();
 		node.bv = Vector3();
 
-		// TODO: node tree
-		//m_ndbvt.update(node.leaf, btDbvtVolume::FromCR(node.x, margin));
+		AABB node_aabb(node.x, leaf_size);
+		node_tree.update(node.leaf, node_aabb);
 	}
 
 	// TODO: update normals
@@ -436,6 +437,7 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 	// Create nodes from vertices.
 	nodes.resize(node_count);
 	real_t inv_node_mass = node_count * inv_total_mass;
+	Vector3 leaf_size = Vector3(collision_margin, collision_margin, collision_margin) * 2.0;
 	for (uint32_t i = 0; i < node_count; ++i) {
 		Node &node = nodes[i];
 		node.s = vertices[i];
@@ -443,8 +445,10 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 		node.q = node.s;
 		node.im = inv_node_mass;
 
-		// TODO: node tree
-		//node.leaf = m_ndbvt.insert(btDbvtVolume::FromCR(node.x, margin), &node);
+		AABB node_aabb(node.x, leaf_size);
+		node.leaf = node_tree.insert(node_aabb, &node);
+
+		node.index = i;
 	}
 
 	// Create links and faces from triangles.
@@ -484,9 +488,7 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 
 	generate_bending_constraints(2);
 
-	// TODO: Check if postpone update is needed
 	update_constants();
-	//m_bUpdateRtCst = true;
 
 	// TODO: btSoftBodyHelpers::ReoptimizeLinkOrder
 
@@ -613,7 +615,6 @@ void SoftBodySW::append_link(uint32_t p_node1, uint32_t p_node2) {
 	link.rl = (node1->x - node2->x).length();
 
 	links.push_back(link);
-	//m_bUpdateRtCst = true;
 }
 
 void SoftBodySW::append_face(uint32_t p_node1, uint32_t p_node2, uint32_t p_node3) {
@@ -642,7 +643,6 @@ void SoftBodySW::append_face(uint32_t p_node1, uint32_t p_node2, uint32_t p_node
 	face.ra = cr.length();
 
 	faces.push_back(face);
-	//m_bUpdateRtCst = true;
 }
 
 void SoftBodySW::set_iteration_count(int p_val) {
@@ -662,11 +662,11 @@ void SoftBodySW::set_total_mass(real_t p_val) {
 		node.im *= mass_factor;
 	}
 
-	//m_bUpdateRtCst = true;
+	update_constants();
 }
 
-void SoftBodySW::set_contact_margin(real_t p_val) {
-	contact_margin = p_val;
+void SoftBodySW::set_collision_margin(real_t p_val) {
+	collision_margin = p_val;
 }
 
 void SoftBodySW::set_linear_stiffness(real_t p_val) {
@@ -711,42 +711,31 @@ void SoftBodySW::predict_motion(real_t p_delta) {
 
 	uint32_t i, ni;
 
-	// Update.
-	/*if (m_bUpdateRtCst) {
-		m_bUpdateRtCst = false;
-		updateConstants();
-		m_fdbvt.clear();
-		if (m_cfg.collisions & fCollision::VF_SS) {
-			initializeFaceTree();
-		}
-	}*/
-
 	// Forces.
 	// TODO: gravity from area detection.
 	Vector3 gravity(0.0, -9.80665, 0.0);
 	add_velocity(gravity * p_delta);
+
 	// Integrate.
 	for (i = 0, ni = nodes.size(); i < ni; ++i) {
-		Node &n = nodes[i];
-		n.q = n.x;
-		n.x += n.v * p_delta;
+		Node &node = nodes[i];
+		node.q = node.x;
+		node.x += node.v * p_delta;
 	}
+
 	// Bounds and tree update.
 	update_bounds();
-	// TODO tree update
-	// Nodes.
-	/*ATTRIBUTE_ALIGNED16(btDbvtVolume)
-	vol;
-	for (i = 0, ni = m_nodes.size(); i < ni; ++i) {
-		Node &n = m_nodes[i];
-		vol = btDbvtVolume::FromCR(n.m_x, m_sst.radmrg);
-		m_ndbvt.update(n.m_leaf,
-				vol,
-				n.m_v * m_sst.velmrg,
-				m_sst.updmrg);
+
+	// Node tree update.
+	Vector3 leaf_size = Vector3(collision_margin, collision_margin, collision_margin) * 2.0;
+	for (i = 0, ni = nodes.size(); i < ni; ++i) {
+		const Node &node = nodes[i];
+		AABB node_aabb(node.x, leaf_size);
+		node_tree.update(node.leaf, node_aabb);
 	}
-	// Faces.
-	if (!m_fdbvt.empty()) {
+
+	// Face tree update.
+	/*if (!m_fdbvt.empty()) {
 		for (int i = 0; i < m_faces.size(); ++i) {
 			Face &f = m_faces[i];
 			const btVector3 v = (f.m_n[0]->m_v +
@@ -763,10 +752,12 @@ void SoftBodySW::predict_motion(real_t p_delta) {
 	// Clear contacts.
 	m_rcontacts.resize(0);
 	m_scontacts.resize(0);
-	// Optimize dbvt's
 	m_ndbvt.optimizeIncremental(1);
 	m_fdbvt.optimizeIncremental(1);
 	m_cdbvt.optimizeIncremental(1);*/
+
+	// Optimize node tree.
+	node_tree.optimize_incremental(1);
 }
 
 void SoftBodySW::solve_constraints(real_t p_delta) {
@@ -775,15 +766,15 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 	uint32_t i, ni;
 
 	for (i = 0, ni = links.size(); i < ni; ++i) {
-		Link &l = links[i];
-		l.c3 = l.n[1]->q - l.n[0]->q;
-		l.c2 = 1 / (l.c3.length_squared() * l.c0);
+		Link &link = links[i];
+		link.c3 = link.n[1]->q - link.n[0]->q;
+		link.c2 = 1 / (link.c3.length_squared() * link.c0);
 	}
 
 	// Solve velocities.
 	for (i = 0, ni = nodes.size(); i < ni; ++i) {
-		Node &n = nodes[i];
-		n.x = n.q + n.v * p_delta;
+		Node &node = nodes[i];
+		node.x = node.q + node.v * p_delta;
 	}
 
 	// Solve positions.
@@ -793,14 +784,14 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 	}
 	const real_t vc = (1.0 - damping_coefficient) * inv_delta;
 	for (i = 0, ni = nodes.size(); i < ni; ++i) {
-		Node &n = nodes[i];
+		Node &node = nodes[i];
 
-		n.x += n.bv * p_delta;
-		n.bv = Vector3();
+		node.x += node.bv * p_delta;
+		node.bv = Vector3();
 
-		n.v = (n.x - n.q) * vc;
+		node.v = (node.x - node.q) * vc;
 
-		n.q = n.x;
+		node.q = node.x;
 	}
 
 	// TODO: update normals
@@ -809,19 +800,48 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 
 void SoftBodySW::solve_links(real_t kst, real_t ti) {
 	for (uint32_t i = 0, ni = links.size(); i < ni; ++i) {
-		Link &l = links[i];
-		if (l.c0 > 0) {
-			Node &a = *l.n[0];
-			Node &b = *l.n[1];
-			const Vector3 del = b.x - a.x;
+		Link &link = links[i];
+		if (link.c0 > 0) {
+			Node &node_a = *link.n[0];
+			Node &node_b = *link.n[1];
+			const Vector3 del = node_b.x - node_a.x;
 			const real_t len = del.length_squared();
-			if (l.c1 + len > CMP_EPSILON) {
-				const real_t k = ((l.c1 - len) / (l.c0 * (l.c1 + len))) * kst;
-				a.x -= del * (k * a.im);
-				b.x += del * (k * b.im);
+			if (link.c1 + len > CMP_EPSILON) {
+				const real_t k = ((link.c1 - len) / (link.c0 * (link.c1 + len))) * kst;
+				node_a.x -= del * (k * node_a.im);
+				node_b.x += del * (k * node_b.im);
 			}
 		}
 	}
+}
+
+struct QueryResult {
+	const SoftBodySW *soft_body = nullptr;
+	void *userdata = nullptr;
+	SoftBodySW::QueryResultCallback result_callback = nullptr;
+
+	_FORCE_INLINE_ bool operator()(void *p_data) {
+		uint32_t node_index = soft_body->get_node_index(p_data);
+		return result_callback(node_index, userdata);
+	};
+};
+
+void SoftBodySW::query_aabb(const AABB &p_aabb, SoftBodySW::QueryResultCallback p_result_callback, void *p_userdata) {
+	QueryResult query_result;
+	query_result.soft_body = this;
+	query_result.result_callback = p_result_callback;
+	query_result.userdata = p_userdata;
+
+	node_tree.aabb_query(p_aabb, query_result);
+}
+
+void SoftBodySW::query_ray(const Vector3 &p_from, const Vector3 &p_to, SoftBodySW::QueryResultCallback p_result_callback, void *p_userdata) {
+	QueryResult query_result;
+	query_result.soft_body = this;
+	query_result.result_callback = p_result_callback;
+	query_result.userdata = p_userdata;
+
+	node_tree.ray_query(p_from, p_to, query_result);
 }
 
 void SoftBodySW::initialize_shape(bool p_force_move) {
@@ -846,6 +866,8 @@ void SoftBodySW::destroy() {
 	indices_table.clear();
 	map_visual_to_physics.clear();
 
+	node_tree.clear();
+
 	nodes.clear();
 	links.clear();
 	faces.clear();
@@ -858,7 +880,7 @@ void SoftBodyShapeSW::update_bounds() {
 	ERR_FAIL_COND(!soft_body);
 
 	AABB collision_aabb = soft_body->get_bounds();
-	collision_aabb.grow_by(soft_body->get_contact_margin());
+	collision_aabb.grow_by(soft_body->get_collision_margin());
 	configure(collision_aabb);
 }
 

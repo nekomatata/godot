@@ -122,8 +122,7 @@ bool CollisionSolverSW::solve_ray(const ShapeSW *p_shape_A, const Transform &p_t
 }
 
 struct _SoftBodyContactCollisionInfo {
-	int index_A = 0;
-	int index_B = 0;
+	int node_index = 0;
 	CollisionSolverSW::CallbackResult result_callback = nullptr;
 	void *userdata = nullptr;
 	bool swap_result = false;
@@ -136,43 +135,123 @@ void CollisionSolverSW::soft_body_contact_callback(const Vector3 &p_point_A, int
 	++cinfo.contact_count;
 
 	if (cinfo.swap_result) {
-		cinfo.result_callback(p_point_B, cinfo.index_B, p_point_A, cinfo.index_A, cinfo.userdata);
+		cinfo.result_callback(p_point_B, cinfo.node_index, p_point_A, p_index_A, cinfo.userdata);
 	} else {
-		cinfo.result_callback(p_point_A, cinfo.index_A, p_point_B, cinfo.index_B, cinfo.userdata);
+		cinfo.result_callback(p_point_A, p_index_A, p_point_B, cinfo.node_index, cinfo.userdata);
 	}
+}
+
+struct _SoftBodyQueryInfo {
+	SoftBodySW *soft_body = nullptr;
+	const ShapeSW *shape_A = nullptr;
+	const ShapeSW *shape_B = nullptr;
+	Transform transform_A;
+	Transform node_transform;
+	_SoftBodyContactCollisionInfo contact_info;
+#ifdef DEBUG_ENABLED
+	int node_query_count = 0;
+	int convex_query_count = 0;
+#endif
+};
+
+bool CollisionSolverSW::soft_body_query_callback(uint32_t p_node_index, void *p_userdata) {
+	_SoftBodyQueryInfo &query_cinfo = *(_SoftBodyQueryInfo *)(p_userdata);
+
+	Vector3 node_position = query_cinfo.soft_body->get_node_position(p_node_index);
+
+	Transform transform_B;
+	transform_B.origin = query_cinfo.node_transform.xform(node_position);
+
+	query_cinfo.contact_info.node_index = p_node_index;
+	solve_static(query_cinfo.shape_A, query_cinfo.transform_A, query_cinfo.shape_B, transform_B, soft_body_contact_callback, &query_cinfo.contact_info);
+
+#ifdef DEBUG_ENABLED
+	++query_cinfo.node_query_count;
+#endif
+
+	return false;
+}
+
+void CollisionSolverSW::soft_body_concave_callback(void *p_userdata, ShapeSW *p_convex) {
+	_SoftBodyQueryInfo &query_cinfo = *(_SoftBodyQueryInfo *)(p_userdata);
+
+	query_cinfo.shape_A = p_convex;
+
+	// Calculate AABB for internal soft body query (in world space).
+	AABB shape_aabb;
+	for (int i = 0; i < 3; i++) {
+		Vector3 axis;
+		axis[i] = 1.0;
+
+		real_t smin, smax;
+		p_convex->project_range(axis, query_cinfo.transform_A, smin, smax);
+
+		shape_aabb.position[i] = smin;
+		shape_aabb.size[i] = smax - smin;
+	}
+
+	shape_aabb.grow_by(query_cinfo.soft_body->get_collision_margin());
+
+	query_cinfo.soft_body->query_aabb(shape_aabb, soft_body_query_callback, &query_cinfo);
+
+#ifdef DEBUG_ENABLED
+	++query_cinfo.convex_query_count;
+#endif
 }
 
 bool CollisionSolverSW::solve_soft_body(const ShapeSW *p_shape_A, const Transform &p_transform_A, const ShapeSW *p_shape_B, const Transform &p_transform_B, CallbackResult p_result_callback, void *p_userdata, bool p_swap_result) {
 	const SoftBodyShapeSW *soft_body_shape_B = static_cast<const SoftBodyShapeSW *>(p_shape_B);
 
-	const SoftBodySW *soft_body = soft_body_shape_B->get_soft_body();
+	SoftBodySW *soft_body = soft_body_shape_B->get_soft_body();
 	const Transform &world_to_local = soft_body->get_inv_transform();
 
-	const real_t contact_margin = soft_body->get_contact_margin();
+	const real_t collision_margin = soft_body->get_collision_margin();
 
-	_SoftBodyContactCollisionInfo cinfo;
-	cinfo.result_callback = p_result_callback;
-	cinfo.userdata = p_userdata;
-	cinfo.swap_result = p_swap_result;
+	SphereShapeSW sphere_shape;
+	sphere_shape.set_data(collision_margin);
 
-	// Brute force
-	uint32_t node_count = soft_body->get_node_count();
-	for (uint32_t node_index = 0; node_index < node_count; ++node_index) {
-		Vector3 node_position = soft_body->get_node_position(node_index);
-		Vector3 node_local_position = world_to_local.xform(node_position);
+	_SoftBodyQueryInfo query_cinfo;
+	query_cinfo.contact_info.result_callback = p_result_callback;
+	query_cinfo.contact_info.userdata = p_userdata;
+	query_cinfo.contact_info.swap_result = p_swap_result;
+	query_cinfo.soft_body = soft_body;
+	query_cinfo.node_transform = p_transform_B * world_to_local;
+	query_cinfo.shape_A = p_shape_A;
+	query_cinfo.transform_A = p_transform_A;
+	query_cinfo.shape_B = &sphere_shape;
 
-		Transform node_transform;
-		node_transform.origin = p_transform_B.xform(node_local_position);
-		//node_transform.origin = node_position;
+	if (p_shape_A->is_concave()) {
+		// In case of concave shape, query convex shapes first.
+		const ConcaveShapeSW *concave_shape_A = static_cast<const ConcaveShapeSW *>(p_shape_A);
 
-		SphereShapeSW sphere_shape;
-		sphere_shape.set_data(contact_margin);
+		AABB soft_body_aabb = soft_body->get_bounds();
+		soft_body_aabb.grow_by(collision_margin);
 
-		cinfo.index_B = node_index;
-		solve_static(p_shape_A, p_transform_A, &sphere_shape, node_transform, soft_body_contact_callback, &cinfo);
+		// Calculate AABB for internal concave shape query (in local space).
+		AABB local_aabb;
+		for (int i = 0; i < 3; i++) {
+			Vector3 axis(p_transform_A.basis.get_axis(i));
+			real_t axis_scale = 1.0 / axis.length();
+
+			real_t smin = soft_body_aabb.position[i];
+			real_t smax = smin + soft_body_aabb.size[i];
+
+			smin *= axis_scale;
+			smax *= axis_scale;
+
+			local_aabb.position[i] = smin;
+			local_aabb.size[i] = smax - smin;
+		}
+
+		concave_shape_A->cull(local_aabb, soft_body_concave_callback, &query_cinfo);
+	} else {
+		AABB shape_aabb = p_transform_A.xform(p_shape_A->get_aabb());
+		shape_aabb.grow_by(collision_margin);
+
+		soft_body->query_aabb(shape_aabb, soft_body_query_callback, &query_cinfo);
 	}
 
-	return (cinfo.contact_count > 0);
+	return (query_cinfo.contact_info.contact_count > 0);
 }
 
 struct _ConcaveCollisionInfo {

@@ -1384,7 +1384,7 @@ LightmapperCPU::BakeError LightmapperCPU::bake(BakeQuality p_quality, bool p_use
 			}
 		}
 
-		if (!scene_lightmaps[i].empty()) {
+		if (!scene_lightmaps[i].is_empty()) {
 			if (_parallel_run(scene_lightmaps[i].size(), "Computing indirect light", &LightmapperCPU::_compute_indirect_light, scene_lightmaps[i].ptr(), p_substep_function)) {
 				return BAKE_ERROR_USER_ABORTED;
 			}

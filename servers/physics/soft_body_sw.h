@@ -36,6 +36,7 @@
 #include "core/local_vector.h"
 #include "core/set.h"
 #include "core/math/aabb.h"
+#include "core/math/dynamic_bvh.h"
 #include "core/math/vector3.h"
 #include "scene/resources/mesh.h"
 
@@ -52,8 +53,8 @@ class SoftBodySW : public CollisionObjectSW {
 		Vector3 v; // Velocity
 		Vector3 n; // Normal
 		real_t im = 0.0; // 1/mass
-		//btDbvtNode *leaf; // Leaf data
-		int index = 0;
+		DynamicBVH::ID leaf; // Leaf data
+		uint32_t index = 0;
 	};
 
 	struct Link {
@@ -77,12 +78,15 @@ class SoftBodySW : public CollisionObjectSW {
 	LocalVector<Node> nodes;
 	LocalVector<Link> links;
 	LocalVector<Face> faces;
+
+	DynamicBVH node_tree;
+
 	LocalVector<uint32_t> map_visual_to_physics;
 	LocalVector<LocalVector<int> > indices_table;
 
 	AABB bounds;
 
-	real_t contact_margin = 0.05;
+	real_t collision_margin = 0.05;
 
 	real_t total_mass = 1.0;
 	real_t inv_total_mass = 1.0;
@@ -143,8 +147,8 @@ public:
 	_FORCE_INLINE_ real_t get_total_mass() const { return total_mass; }
 	_FORCE_INLINE_ real_t get_total_inv_mass() const { return inv_total_mass; }
 
-	void set_contact_margin(real_t p_val);
-	_FORCE_INLINE_ real_t get_contact_margin() const { return contact_margin; }
+	void set_collision_margin(real_t p_val);
+	_FORCE_INLINE_ real_t get_collision_margin() const { return collision_margin; }
 
 	void set_linear_stiffness(real_t p_val);
 	_FORCE_INLINE_ real_t get_linear_stiffness() const { return linear_stiffness; }
@@ -169,6 +173,14 @@ public:
 
 	void predict_motion(real_t p_delta);
 	void solve_constraints(real_t p_delta);
+
+	_FORCE_INLINE_ uint32_t get_node_index(void *p_node) const { return ((Node *)p_node)->index; }
+
+	// Return true to stop the query.
+	typedef bool (*QueryResultCallback)(uint32_t p_node_index, void *p_userdata);
+
+	void query_aabb(const AABB &p_aabb, QueryResultCallback p_result_callback, void *p_userdata);
+	void query_ray(const Vector3 &p_from, const Vector3 &p_to, QueryResultCallback p_result_callback, void *p_userdata);
 
 protected:
 	virtual void _shapes_changed();
