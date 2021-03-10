@@ -46,6 +46,9 @@ _FORCE_INLINE_ static bool _can_collide_with(CollisionObjectSW *p_object, uint32
 	if (p_object->get_type() == CollisionObjectSW::TYPE_BODY && !p_collide_with_bodies)
 		return false;
 
+	if (p_object->get_type() == CollisionObjectSW::TYPE_SOFT_BODY && !p_collide_with_bodies)
+		return false;
+
 	return true;
 }
 
