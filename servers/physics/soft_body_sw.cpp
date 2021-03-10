@@ -163,6 +163,30 @@ void SoftBodySW::update_visual_server(VisualServerHandler *p_visual_server_handl
 	p_visual_server_handler->set_aabb(bounds);
 }
 
+void SoftBodySW::update_normals() {
+	uint32_t i, ni;
+
+	for (i = 0, ni = nodes.size(); i < ni; ++i) {
+		nodes[i].n = Vector3();
+	}
+
+	for (i = 0, ni = faces.size(); i < ni; ++i) {
+		Face &face = faces[i];
+		const Vector3 n = vec3_cross(face.n[0]->x - face.n[2]->x, face.n[0]->x - face.n[1]->x);
+		face.n[0]->n += n;
+		face.n[1]->n += n;
+		face.n[2]->n += n;
+	}
+
+	for (i = 0, ni = nodes.size(); i < ni; ++i) {
+		Node &node = nodes[i];
+		real_t len = node.n.length();
+		if (len > CMP_EPSILON) {
+			node.n /= len;
+		}
+	}
+}
+
 void SoftBodySW::update_bounds() {
 	AABB prev_bounds = bounds;
 	prev_bounds.grow_by(collision_margin);
@@ -235,8 +259,7 @@ void SoftBodySW::apply_nodes_transform(const Transform &p_transform) {
 		node_tree.update(node.leaf, node_aabb);
 	}
 
-	// TODO: update normals
-	//updateNormals();
+	update_normals();
 	update_bounds();
 	update_constants();
 }
@@ -492,8 +515,7 @@ bool SoftBodySW::create_from_trimesh(const PoolVector<int> &p_indices, const Poo
 
 	// TODO: btSoftBodyHelpers::ReoptimizeLinkOrder
 
-	// TODO: update normals
-	//updateNormals();
+	update_normals();
 	update_bounds();
 
 	return true;
@@ -636,11 +658,6 @@ void SoftBodySW::append_face(uint32_t p_node1, uint32_t p_node2, uint32_t p_node
 	face.n[0] = node1;
 	face.n[1] = node2;
 	face.n[2] = node3;
-
-	Vector3 a = node2->x - node1->x;
-	Vector3 b = node3->x - node1->x;
-	Vector3 cr = vec3_cross(a, b);
-	face.ra = cr.length();
 
 	faces.push_back(face);
 }
@@ -794,8 +811,7 @@ void SoftBodySW::solve_constraints(real_t p_delta) {
 		node.q = node.x;
 	}
 
-	// TODO: update normals
-	//updateNormals();
+	update_normals();
 }
 
 void SoftBodySW::solve_links(real_t kst, real_t ti) {

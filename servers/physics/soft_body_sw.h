@@ -68,11 +68,6 @@ class SoftBodySW : public CollisionObjectSW {
 
 	struct Face {
 		Node *n[3] = { nullptr, nullptr, nullptr }; // Node pointers
-		Vector3 normal; // Normal
-		real_t ra; // Rest area
-		//btDbvtNode *leaf; // Leaf data
-		real_t pcontact[4] = { 0, 0, 0, 0 }; // barycentric weights of the persistent contact
-		int index = 0;
 	};
 
 	LocalVector<Node> nodes;
@@ -186,6 +181,7 @@ protected:
 	virtual void _shapes_changed();
 
 private:
+	void update_normals();
 	void update_bounds();
 	void update_constants();
 	void reset_link_rest_lengths();
